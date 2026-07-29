@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 - 2026-07-29
+
+- Rewrite the public documentation in a concise, personal voice that explains
+  why LowPack works the way it does.
+- Add clearer narrative guidance around profiles, determinism, security,
+  benchmarking, and the binary format.
+- Correct the alpha limitations page: bounded deterministic source dictionary
+  training is active and authenticated in the manifest.
+
 ## 0.1.1 - 2026-07-29
 
 - Prevent duplicate CI matrices when release tags are pushed.
