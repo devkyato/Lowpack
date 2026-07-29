@@ -10,6 +10,10 @@ mypy src/lowpack
 python -m build
 ```
 
+For release artifacts, use `python scripts/build_release.py`. It pins the
+archive timestamp through `SOURCE_DATE_EPOCH`, so a clean checkout can produce
+the same wheel and source archive byte-for-byte.
+
 I thought about format changes as a special case: once bytes become archives,
 casual changes can strand somebody's data. A format change therefore needs a
 version decision, byte-level docs, corruption and determinism tests, and

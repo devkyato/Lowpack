@@ -37,22 +37,38 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest
+
+  quality-and-package:
+    runs-on: ubuntu-latest
+    needs: test
+    env:
+      SOURCE_DATE_EPOCH: "315532800"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check .
       - run: python -m mypy src/lowpack
       - run: python benchmarks/generate_corpus.py
       - run: python -m lowpack benchmark benchmarks/corpus --repeats 1 --json benchmarks/sanity.json
       - run: python -m build
       - run: python -m venv wheel-test
-      - shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            wheel-test/Scripts/python -m pip install dist/*.whl
-            wheel-test/Scripts/python -m lowpack --version
-          else
-            wheel-test/bin/python -m pip install dist/*.whl
-            wheel-test/bin/python -m lowpack --version
-          fi
+      - run: wheel-test/bin/python -m pip install dist/*.whl
+      - run: wheel-test/bin/python -m lowpack --version
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}-${{ matrix.python }}
+          name: dist
           path: dist/*
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[fuzz]"
+      - run: python fuzz/fuzz_manifest.py -runs=5000 fuzz/corpus/manifest

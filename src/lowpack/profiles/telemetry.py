@@ -3,15 +3,33 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import csv
 import io
 import json
 import struct
-from typing import Any
+from typing import Any, cast
 
 from .base import EncodedData, TransformOptions
 
 MAGIC = b"LPTCSV1\n"
+MAX_COLUMNS = 4096
+MAX_ROWS = 1_000_000
+MAX_CELLS = 10_000_000
+
+
+def _integer(value: Any, name: str, *, minimum: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ValueError(f"invalid telemetry {name}")
+    return cast(int, value)
+
+
+def _string_list(value: Any, name: str, *, expected: int | None = None) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"invalid telemetry {name}")
+    if expected is not None and len(value) != expected:
+        raise ValueError(f"invalid telemetry {name} length")
+    return value
 
 
 def _bits(values: list[bool]) -> str:
@@ -22,8 +40,17 @@ def _bits(values: list[bool]) -> str:
     return base64.b64encode(packed).decode("ascii")
 
 
-def _unbits(value: str, count: int) -> list[bool]:
-    packed = base64.b64decode(value)
+def _unbits(value: Any, count: int) -> list[bool]:
+    if not isinstance(value, str):
+        raise ValueError("invalid telemetry bitmap")
+    try:
+        packed = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("invalid telemetry bitmap") from exc
+    if len(packed) != (count + 7) // 8:
+        raise ValueError("telemetry bitmap length mismatch")
+    if count % 8 and packed and packed[-1] >> (count % 8):
+        raise ValueError("telemetry bitmap has nonzero padding")
     return [bool(packed[index // 8] & (1 << (index % 8))) for index in range(count)]
 
 
@@ -127,29 +154,105 @@ def _encode_values(values: list[str], kind: str, encoding: str) -> dict[str, Any
     return record
 
 
-def _decode_values(record: dict[str, Any]) -> list[str]:
-    encoding = record["encoding"]
+def _decode_values(record: dict[str, Any], row_count: int) -> list[str]:
+    if not isinstance(record, dict):
+        raise ValueError("invalid telemetry column")
+    if _integer(record.get("row_count"), "column row count") != row_count:
+        raise ValueError("telemetry column row count mismatch")
+    if not isinstance(record.get("name"), str) or not isinstance(record.get("type"), str):
+        raise ValueError("invalid telemetry column identity")
+    encoding = record.get("encoding")
+    if encoding not in {
+        "delta",
+        "delta-of-delta",
+        "bit-pack",
+        "dictionary",
+        "rle",
+        "ieee-754",
+        "plain",
+    }:
+        raise ValueError("unsupported telemetry encoding")
+    nulls = _unbits(record.get("null_bitmap"), row_count)
+    non_null_count = row_count - sum(nulls)
     if encoding in {"delta", "delta-of-delta"}:
+        _integer(record.get("first"), "delta first", minimum=-(2**63))
+        values = record.get("values")
+        if not isinstance(values, list) or any(
+            isinstance(value, bool) or not isinstance(value, int) for value in values
+        ):
+            raise ValueError("invalid telemetry deltas")
+        expected_values = max(0, non_null_count - (2 if encoding == "delta-of-delta" else 1))
+        if len(values) != expected_values:
+            raise ValueError("telemetry delta count mismatch")
+        if encoding == "delta-of-delta":
+            if non_null_count < 3:
+                raise ValueError("delta-of-delta requires at least three values")
+            if isinstance(record.get("first_delta"), bool) or not isinstance(
+                record.get("first_delta"), int
+            ):
+                raise ValueError("invalid telemetry first delta")
         non_null = [str(value) for value in _undelta(record)]
     elif encoding == "bit-pack":
-        words = _unbits(record["values"], int(record["count"]))
-        if record["style"] == "word":
+        count = _integer(record.get("count"), "bit count")
+        if count != non_null_count:
+            raise ValueError("telemetry bit count mismatch")
+        words = _unbits(record.get("values"), count)
+        if record.get("style") == "word":
             non_null = ["true" if value else "false" for value in words]
-        else:
+        elif record.get("style") == "digit":
             non_null = ["1" if value else "0" for value in words]
+        else:
+            raise ValueError("invalid telemetry boolean style")
     elif encoding == "dictionary":
-        non_null = [record["dictionary"][index] for index in record["indices"]]
+        dictionary = _string_list(record.get("dictionary"), "dictionary")
+        indices = record.get("indices")
+        if (
+            not isinstance(indices, list)
+            or len(indices) != non_null_count
+            or any(isinstance(index, bool) or not isinstance(index, int) for index in indices)
+            or any(index < 0 or index >= len(dictionary) for index in indices)
+        ):
+            raise ValueError("invalid telemetry dictionary indices")
+        non_null = [dictionary[index] for index in indices]
     elif encoding == "rle":
-        non_null = [value for value, count in record["runs"] for _ in range(int(count))]
+        runs = record.get("runs")
+        if not isinstance(runs, list):
+            raise ValueError("invalid telemetry runs")
+        non_null = []
+        run_total = 0
+        for run in runs:
+            if (
+                not isinstance(run, list)
+                or len(run) != 2
+                or not isinstance(run[0], str)
+            ):
+                raise ValueError("invalid telemetry run")
+            count = _integer(run[1], "run length", minimum=1)
+            run_total += count
+            if run_total > non_null_count:
+                raise ValueError("telemetry runs exceed row count")
+            non_null.extend([run[0]] * count)
+        if run_total != non_null_count:
+            raise ValueError("telemetry run count mismatch")
     elif encoding == "ieee-754":
-        packed = base64.b64decode(record["values"])
+        if not isinstance(record.get("values"), str):
+            raise ValueError("invalid telemetry float payload")
+        try:
+            packed = base64.b64decode(record["values"], validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise ValueError("invalid telemetry float payload") from exc
+        if len(packed) != non_null_count * 8:
+            raise ValueError("telemetry float payload length mismatch")
         non_null = [
             repr(struct.unpack(">d", packed[index : index + 8])[0])
             for index in range(0, len(packed), 8)
         ]
     else:
-        non_null = list(record["values"])
-    nulls = _unbits(record["null_bitmap"], int(record["row_count"]))
+        non_null = _string_list(
+            record.get("values"), "plain values", expected=non_null_count
+        )
+    if len(non_null) != non_null_count:
+        raise ValueError("telemetry non-null value count mismatch")
     iterator = iter(non_null)
     return ["" if is_null else next(iterator) for is_null in nulls]
 
@@ -210,19 +313,61 @@ class TelemetryTransformer:
             },
         )
 
-    def decode(self, encoded: EncodedData) -> bytes:
+    def decode(
+        self,
+        encoded: EncodedData,
+        *,
+        max_output_size: int | None = None,
+        expected_output_size: int | None = None,
+    ) -> bytes:
         if encoded.metadata.get("mode") == "exact":
+            if max_output_size is not None and len(encoded.data) > max_output_size:
+                raise ValueError("telemetry output exceeds safety limit")
+            if expected_output_size is not None and len(encoded.data) != expected_output_size:
+                raise ValueError("telemetry output size mismatch")
             return encoded.data
         if not encoded.data.startswith(MAGIC):
             raise ValueError("invalid telemetry transformation")
-        value = json.loads(encoded.data[len(MAGIC) :].decode("utf-8"))
+        try:
+            value = json.loads(encoded.data[len(MAGIC) :].decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+            raise ValueError("invalid telemetry transformation JSON") from exc
+        if not isinstance(value, dict):
+            raise ValueError("invalid telemetry transformation root")
+        row_count = _integer(value.get("row_count"), "row count")
+        if row_count > MAX_ROWS:
+            raise ValueError("telemetry row count exceeds safety limit")
+        header = _string_list(value.get("header"), "header")
+        columns = value.get("columns")
+        if (
+            not isinstance(columns, list)
+            or len(columns) != len(header)
+            or len(columns) > MAX_COLUMNS
+        ):
+            raise ValueError("invalid telemetry columns")
+        if row_count * max(1, len(columns)) > MAX_CELLS:
+            raise ValueError("telemetry cell count exceeds safety limit")
+        if expected_output_size is not None:
+            if expected_output_size < 0:
+                raise ValueError("invalid expected telemetry output size")
+            if row_count > expected_output_size + 1:
+                raise ValueError("telemetry row count cannot fit declared output")
+            if max_output_size is not None and expected_output_size > max_output_size:
+                raise ValueError("telemetry output exceeds safety limit")
+        decoded_columns = [_decode_values(record, row_count) for record in columns]
+        if [record.get("name") for record in columns] != header:
+            raise ValueError("telemetry column names do not match header")
         output = io.StringIO(newline="")
         writer = csv.writer(output, lineterminator="\n")
-        writer.writerow(value["header"])
-        columns = [_decode_values(record) for record in value["columns"]]
-        for row_index in range(value["row_count"]):
-            writer.writerow([column[row_index] for column in columns])
-        return output.getvalue().encode("utf-8")
+        writer.writerow(header)
+        for row_index in range(row_count):
+            writer.writerow([column[row_index] for column in decoded_columns])
+        result = output.getvalue().encode("utf-8")
+        if max_output_size is not None and len(result) > max_output_size:
+            raise ValueError("telemetry output exceeds safety limit")
+        if expected_output_size is not None and len(result) != expected_output_size:
+            raise ValueError("telemetry output size mismatch")
+        return result
 
 
 TRANSFORMER = TelemetryTransformer()

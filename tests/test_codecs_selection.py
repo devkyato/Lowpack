@@ -23,3 +23,12 @@ def test_selection_is_explainable_and_bounded() -> None:
 def test_store_selected_for_png_magic_random_data() -> None:
     selected = select_codec(b"\x89PNG\r\n\x1a\n" + os.urandom(8192), already_compressed=True)
     assert selected.codec == "store"
+
+
+@pytest.mark.parametrize(
+    "goal",
+    ["balanced", "smallest", "prefer-store", "prefer-zstd-low", "avoid-zlib"],
+)
+def test_deterministic_policy_names(goal: str) -> None:
+    selected = select_codec(b"policy input " * 1000, goal=goal)
+    assert "bounded" in selected.reason

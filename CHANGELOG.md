@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 - 2026-07-29
+
+- Harden input collection against duplicate names and identities, symlink
+  cycles, source mutation, and output-inside-input recursion.
+- Stream ordinary verification and extraction with conservative defaults.
+- Introduce a separately versioned strict manifest schema, centralized
+  compression dictionaries, and preferred-versus-actual codec explanations.
+- Validate telemetry transform structures and resource relationships before
+  reconstruction.
+- Make permission restoration opt-in and mask archived modes to ordinary rwx
+  bits.
+- Replace speed-claiming goal names with deterministic policy names and split
+  benchmarks into payload, container, and full-archive comparisons.
+- Add hostile-input regression coverage and a bounded fuzzing workflow.
+- Pin release-build timestamps so both wheels and source archives reproduce
+  byte-for-byte.
+
 ## 0.1.2 - 2026-07-29
 
 - Rewrite the public documentation in a concise, personal voice that explains

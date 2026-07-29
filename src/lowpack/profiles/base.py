@@ -38,4 +38,10 @@ class Transformer(Protocol):
 
     def encode(self, data: bytes, options: TransformOptions) -> EncodedData: ...
 
-    def decode(self, encoded: EncodedData) -> bytes: ...
+    def decode(
+        self,
+        encoded: EncodedData,
+        *,
+        max_output_size: int | None = None,
+        expected_output_size: int | None = None,
+    ) -> bytes: ...

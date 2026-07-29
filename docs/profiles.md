@@ -20,8 +20,9 @@ path-component matches. `--include-all` disables defaults; user `--exclude`
 patterns and `--include` filters remain explicit. Exclusions are output and
 stored. Related text files are grouped by language. With at least eight useful
 samples, deterministic Zstandard dictionaries are trained from at most 64 KiB
-per file and 1 MiB per group, capped at 8 KiB per dictionary. Dictionary bytes
-needed for decoding are authenticated inside the canonical manifest.
+per file and 1 MiB per group, capped at 8 KiB per dictionary. Each dictionary
+is stored once in the canonical manifest and chunks reference its SHA-256 ID.
+The source-category table points to that same authenticated record.
 
 ## Telemetry
 
