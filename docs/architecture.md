@@ -9,6 +9,10 @@ review.
 extraction. Its individual stages are deliberately isolated as helpers with
 one-way data flow; `format.py` handles fixed binary framing and `manifest.py`
 handles executable-free canonical JSON plus total JSON limits.
+`migration.py` is a deliberately narrow bridge from format 1.0 to 1.1: it
+authenticates the source, normalizes its manifest into schema 2, preserves the
+chunk payload area, and accepts the output only after current full
+verification.
 `codecs` exposes the experimental `Codec` protocol. `profiles` detects or
 reversibly prepares application data without owning compression. `selection`
 measures a bounded sample and stores all candidate measurements. The CLI is a

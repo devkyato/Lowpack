@@ -3,7 +3,9 @@
 I would rather keep this list direct than hide unfinished edges behind an
 “alpha” label. These are the boundaries I know about today:
 
-- Format compatibility is not promised across alpha releases.
+- Forward compatibility is not promised across alpha releases. LowPack 0.2.1
+  provides a checked migration for format 1.0 archives created by 0.1.x; it
+  does not guess at unknown formats or repair corrupted archives.
 - Chunk boundaries are fixed-size, not content-defined.
 - Source dictionary training is active, bounded, deterministic, and
   authenticated in the manifest, but it currently applies only to Zstandard
@@ -23,5 +25,5 @@ I would rather keep this list direct than hide unfinished edges behind an
 - General safety limits are constants in the 0.2 library API.
 
 I am tracking the larger follow-ups in the
-[v0.2.0 milestone](https://github.com/devkyato/Lowpack/milestone/1), so this
-page and the issue tracker should tell the same story.
+[issue tracker](https://github.com/devkyato/Lowpack/issues), so this page and
+the roadmap should tell the same story.
