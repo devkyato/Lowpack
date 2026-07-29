@@ -16,6 +16,7 @@
 - Add hostile-input regression coverage and a bounded fuzzing workflow.
 - Pin release-build timestamps so both wheels and source archives reproduce
   byte-for-byte.
+- Move the CI action runtime to the current Node 24-based v7 majors.
 
 ## 0.1.2 - 2026-07-29
 
