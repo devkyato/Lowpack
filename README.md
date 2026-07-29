@@ -2,6 +2,11 @@
 
 ![LowPack — local-first, application-aware lossless packing](docs/assets/github-cover.png)
 
+[![CI](https://github.com/devkyato/Lowpack/actions/workflows/ci.yml/badge.svg)](https://github.com/devkyato/Lowpack/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/devkyato/Lowpack?include_prereleases)](https://github.com/devkyato/Lowpack/releases)
+[![Python 3.9–3.14](https://img.shields.io/badge/python-3.9%E2%80%933.14-blue)](https://github.com/devkyato/Lowpack/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 LowPack is a local-first, application-aware lossless packer that prepares data
 for how it is stored and used, then applies proven compression codecs.
 
