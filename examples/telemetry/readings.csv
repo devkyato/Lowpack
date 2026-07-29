@@ -1,0 +1,4 @@
+timestamp,temperature,ok,status
+1,20.1,true,ok
+2,20.2,true,ok
+3,20.2,false,warn

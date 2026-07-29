@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - os: windows-latest
+            python: "3.10"
+          - os: windows-latest
+            python: "3.11"
+          - os: windows-latest
+            python: "3.12"
+          - os: windows-latest
+            python: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest
+      - run: python -m ruff check .
+      - run: python -m mypy src/lowpack
+      - run: python benchmarks/generate_corpus.py
+      - run: python -m lowpack benchmark benchmarks/corpus --repeats 1 --json benchmarks/sanity.json
+      - run: python -m build
+      - run: python -m venv wheel-test
+      - shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            wheel-test/Scripts/python -m pip install dist/*.whl
+            wheel-test/Scripts/python -m lowpack --version
+          else
+            wheel-test/bin/python -m pip install dist/*.whl
+            wheel-test/bin/python -m lowpack --version
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}-${{ matrix.python }}
+          path: dist/*
