@@ -1,5 +1,10 @@
 # `.lpk` binary format, version 1.0
 
+This page is the precise reference. I chose a small framing format that can be
+read from both ends: the front establishes identity and version, while the
+footer points straight to the manifest. That is what lets LowPack list or
+extract one file without unpacking everything first.
+
 All integers are unsigned, big-endian. Offsets are absolute from byte zero.
 Hashes are SHA-256 over the named bytes. Reserved values must be zero.
 
@@ -30,7 +35,9 @@ Each unique raw chunk appears once. Files reference it by its raw SHA-256.
 
 ## Canonical manifest
 
-The uncompressed manifest immediately follows chunk records. It is UTF-8 JSON
+I used canonical JSON here because it is inspectable, deterministic, and not
+executable serialization. The uncompressed manifest immediately follows chunk
+records. It is UTF-8 JSON
 with sorted keys, compact separators, no NaN/Infinity, explicit integers, and
 normalized POSIX relative paths. Re-encoding must reproduce identical bytes.
 Top-level data records versions, codec versions, profile/goal, exclusions,
@@ -55,5 +62,6 @@ A zero-byte file has an empty chunk list and SHA-256
 The body hash covers the header, all chunk records, and the manifest, but not
 the footer. A reader seeks 84 bytes from EOF, validates bounds and hashes, and
 can then list files without decompressing payloads. Chunk offsets allow
-single-file extraction. A short footer, impossible bounds, mismatched hash,
-or missing magic identifies truncation/corruption.
+single-file extraction. In other words, a short footer, impossible bounds,
+mismatched hash, or missing magic is a clean corruption signal rather than a
+guess.

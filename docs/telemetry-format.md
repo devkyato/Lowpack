@@ -1,6 +1,8 @@
 # Telemetry CSV transformation
 
-Exact mode identifies the transformation as `telemetry-csv-v1` but preserves
+I split telemetry into exact and canonical modes because “lossless CSV” can
+mean two different things. Exact mode identifies the transformation as
+`telemetry-csv-v1` but preserves
 the input byte-for-byte. Canonical mode parses UTF-8 CSV, rejects inconsistent
 row widths, stores header/order and separated columns in deterministic JSON
 prefixed by `LPTCSV1\n`, and reconstructs with comma delimiters, minimal
@@ -14,4 +16,5 @@ rounding. `--time-field` forces timestamp classification (non-integral
 timestamps use a string dictionary).
 
 Canonical reconstruction is semantically equivalent CSV, not byte-identical:
-line endings, quoting choices, and insignificant formatting can change.
+line endings, quoting choices, and insignificant formatting can change. If
+those original bytes matter, use exact mode—that is why I made it the default.

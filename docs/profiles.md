@@ -1,10 +1,19 @@
 # Profiles
 
+Profiles are where LowPack answers “what kind of data am I preparing?” without
+pretending the final codec is new. I kept the choices small enough to explain.
+
+## General
+
 General changes no bytes. Its magic-byte detector conservatively recognizes
 PNG, JPEG, GIF, WebP/RIFF, MP3, MP4, PDF, ZIP, gzip, 7z, RAR, and LowPack.
-It selects store when sample compression has no meaningful benefit.
+It selects store when sample compression has no meaningful benefit. This is
+the profile I expect people to reach for first.
 
-Source changes no bytes and categorizes common source/document extensions.
+## Source
+
+I thought about project directories as more than one large byte stream. Source
+still changes no bytes, but it categorizes common source/document extensions.
 Its defaults are `.git`, `.venv`, `venv`, `__pycache__`, `.mypy_cache`,
 `.pytest_cache`, `.ruff_cache`, `node_modules`, `dist`, and `build`. These are
 path-component matches. `--include-all` disables defaults; user `--exclude`
@@ -14,5 +23,9 @@ samples, deterministic Zstandard dictionaries are trained from at most 64 KiB
 per file and 1 MiB per group, capped at 8 KiB per dictionary. Dictionary bytes
 needed for decoding are authenticated inside the canonical manifest.
 
-Telemetry supports UTF-8 CSV. Exact mode stores original bytes after detection.
-Canonical mode uses the transformation documented in telemetry-format.md.
+## Telemetry
+
+Telemetry supports UTF-8 CSV. Exact mode stores original bytes after
+detection. Canonical mode uses the transformation documented in
+[telemetry-format.md](telemetry-format.md). If byte-for-byte reconstruction is
+the priority, exact mode is the simple answer.
