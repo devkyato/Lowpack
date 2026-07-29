@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lowpack"
-version = "0.2.0"
+version = "0.2.1"
 description = "Application-aware, lossless local-first packing built on proven codecs."
 readme = "README.md"
 requires-python = ">=3.9"

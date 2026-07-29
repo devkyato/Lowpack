@@ -36,6 +36,32 @@ class VerificationResult:
 
 
 @dataclass(frozen=True)
+class MigrationResult:
+    source: Path
+    archive: Path
+    source_format: str
+    target_format: str
+    file_count: int
+    chunk_count: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class CompatibilityResult:
+    archive: Path
+    format_version: str
+    status: str
+    current: bool
+    migration_supported: bool
+    target_format: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class ArchiveInfo:
     path: Path
     format_version: str

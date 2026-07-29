@@ -13,8 +13,8 @@ it will actually be stored and used, then hands it to proven lossless codecs.
 It is a terminal tool and Python library that stays completely on your laptop.
 
 > **A quick, honest alpha note:** the `.lpk` format is still experimental.
-> Archives from alpha releases may need migration, so please do not make
-> LowPack the only copy of important data.
+> LowPack 0.2.1 can migrate format 1.0 archives made by the 0.1 releases, but
+> please do not make any alpha archive the only copy of important data.
 
 Oh! One point I care about being clear on: LowPack does **not** universally
 outperform Zstandard, gzip, ZIP, Brotli, LZ4, or anything else. Results depend
@@ -24,15 +24,27 @@ indexing, deduplication, explainable selection, and reversible preparation.
 
 ## Install
 
-Python 3.9 through 3.14 is supported. For development, I usually start with a
-fresh environment so the checks describe the project instead of my machine:
+Python 3.9 through 3.14 is supported. To use LowPack today, install the wheel
+attached to the GitHub release:
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.1/lowpack-0.2.1-py3-none-any.whl"
 lowpack --version
+lowpack doctor
 ```
+
+On macOS or Linux, activation is `source .venv/bin/activate`; the install
+command is otherwise the same. If I want the terminal command isolated from a
+project, I use `pipx install` with that wheel URL instead. Each release also
+includes `SHA256SUMS`, the source archive, and exact verification notes. The
+[getting-started guide](docs/getting-started.md) covers installation,
+upgrades, a first round trip, and common command-not-found fixes.
+
+For development, clone the repository and use
+`python -m pip install -e ".[dev]"` in a fresh environment. That keeps the
+published install path separate from contributor tooling.
 
 That is it. LowPack needs no account, website, cloud service, daemon, database,
 analytics, or background network access.
@@ -53,6 +65,20 @@ lowpack unpack project.lpk -o restored
 Selective extraction is `lowpack extract project.lpk project/src -o selected`.
 I made `--overwrite` explicit on purpose, and `lowpack doctor` is there when
 you want a quick check of the local environment.
+
+If an archive came from LowPack 0.1, migrate it without touching the original:
+
+```powershell
+lowpack compatibility old-project.lpk
+lowpack migrate old-project.lpk -o project-1.1.lpk
+lowpack verify project-1.1.lpk --full
+```
+
+Oh! On this part I thought the safest upgrade was the least surprising one:
+LowPack authenticates the old archive, rewrites only the framing and manifest,
+fully reconstructs and verifies the migrated temporary archive, and moves it
+into place only after all of that succeeds. See the
+[compatibility guide](docs/compatibility.md).
 
 Codec selection uses deterministic policy names: `balanced`, `smallest`,
 `prefer-store`, `prefer-zstd-low`, and `avoid-zlib`. They describe stable
@@ -146,12 +172,23 @@ the identified corpus and environment.
 ## Python API
 
 ```python
-from lowpack import inspect_archive, pack, unpack, verify_archive
+from lowpack import (
+    inspect_archive,
+    migrate_archive,
+    pack,
+    probe_compatibility,
+    unpack,
+    verify_archive,
+)
 
 pack(["project"], "project.lpk", profile="source", goal="balanced")
 info = inspect_archive("project.lpk")
 assert verify_archive("project.lpk", full=True).valid
 unpack("project.lpk", output="restored")
+
+# For a 0.1 archive:
+probe_compatibility("old-project.lpk")
+migrate_archive("old-project.lpk", "project-1.1.lpk")
 ```
 
 Functions return typed frozen result models.
@@ -159,8 +196,9 @@ Functions return typed frozen result models.
 ## Limitations
 
 This is where I would rather be specific than sound finished too early. The
-format has no pre-1.0 forward-compatibility promise. Version 0.2 deliberately
-introduces manifest schema 2 after the 0.1 security review. Source dictionaries
+format has no forward-compatibility promise during alpha. Version 0.2
+deliberately introduced manifest schema 2 after the 0.1 security review;
+0.2.1 provides a checked migration from format 1.0. Source dictionaries
 use bounded deterministic samples and only apply to Zstandard chunks.
 Telemetry canonical mode stores exact IEEE-754 values, but only exact mode
 preserves the original decimal spelling. Canonical transforms have a 64 MiB

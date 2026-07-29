@@ -21,6 +21,7 @@ from .benchmark import benchmark, markdown_report
 from .codecs import CODECS
 from .explain import explain_manifest
 from .format import FormatError
+from .migration import migrate_archive, probe_compatibility
 
 
 def _size(value: str) -> int:
@@ -104,6 +105,21 @@ def build_parser() -> argparse.ArgumentParser:
     extracting.add_argument("--max-files", type=int, default=100_000)
     extracting.add_argument("--max-chunks", type=int, default=1_000_000)
     _add_json(extracting)
+
+    migrating = subparsers.add_parser(
+        "migrate", help="safely migrate a format 1.0 archive to format 1.1"
+    )
+    migrating.add_argument("archive")
+    migrating.add_argument("-o", "--output", required=True)
+    migrating.add_argument("--overwrite", action="store_true")
+    _add_json(migrating)
+
+    compatibility = subparsers.add_parser(
+        "compatibility",
+        help="authenticate and classify an archive without decompressing it",
+    )
+    compatibility.add_argument("archive")
+    _add_json(compatibility)
 
     verifying = subparsers.add_parser("verify", help="verify archive integrity")
     verifying.add_argument("archive")
@@ -276,6 +292,34 @@ def run(args: argparse.Namespace) -> int:
         )
         print(
             _json([str(path) for path in paths]) if args.json else f"Extracted {len(paths)} files"
+        )
+        return 0
+    if command == "migrate":
+        migration_result = migrate_archive(
+            args.archive,
+            args.output,
+            overwrite=args.overwrite,
+        )
+        print(
+            _json(asdict(migration_result))
+            if args.json
+            else (
+                f"Migrated {migration_result.source} from "
+                f"{migration_result.source_format} to "
+                f"{migration_result.archive} ({migration_result.target_format})"
+            )
+        )
+        return 0
+    if command == "compatibility":
+        compatibility_result = probe_compatibility(args.archive)
+        print(
+            _json(asdict(compatibility_result))
+            if args.json
+            else (
+                f"{compatibility_result.archive}: "
+                f"format {compatibility_result.format_version}, "
+                f"{compatibility_result.status}"
+            )
         )
         return 0
     if command == "list":

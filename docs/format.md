@@ -58,6 +58,12 @@ Every file records a preferred codec policy plus one `chunk_decisions` entry
 per reference. Those entries name the actual stored codec/dictionary and say
 whether content-addressed deduplication reused an earlier representation.
 
+Format 1.0, written by LowPack 0.1.x, used embedded per-chunk dictionary bytes
+and a less explicit codec-decision record. `lowpack migrate` is the supported
+bridge to format 1.1 and manifest schema 2.0. The
+[compatibility guide](compatibility.md) describes exactly what is preserved
+and checked.
+
 A zero-byte file has an empty chunk list and SHA-256
 `e3b0c44298fc1c149afbf4c8996fb924...`.
 

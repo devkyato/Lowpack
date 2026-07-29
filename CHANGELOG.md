@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.1 - 2026-07-29
+
+- Add a read-only `lowpack compatibility` probe plus an authenticated, atomic
+  `lowpack migrate` command and typed Python APIs for format 1.0 archives
+  created by LowPack 0.1.x.
+- Preserve legacy chunk payloads while converting embedded dictionaries,
+  selection goals, and codec decisions into strict format 1.1 manifest schema
+  2.0 records.
+- Fully reconstruct and verify migrated archives before publishing the output,
+  leaving the source untouched and requiring explicit destination overwrite.
+- Separate end-user wheel installation from contributor setup, with a
+  cross-platform getting-started guide, checksum guidance, upgrade steps, and
+  compatibility reference.
+
 ## 0.2.0 - 2026-07-29
 
 - Harden input collection against duplicate names and identities, symlink

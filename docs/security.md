@@ -34,3 +34,10 @@ privately owned output directory plus OS quotas or sandboxing.
 Archived permissions are ignored by default. `--restore-permissions` opts in
 to ordinary user/group/other rwx bits; setuid, setgid, and sticky bits are
 masked during packing and extraction.
+
+Migration uses the same trust boundary. `lowpack migrate` first authenticates
+the complete format 1.0 body, converts its manifest into the strict current
+schema, rejects unsafe paths and inconsistent relationships, and writes to a
+sibling temporary file. It then performs a full decompression and
+reconstruction check before atomic replacement. The source archive is never
+modified, and an existing destination still requires `--overwrite`.
