@@ -1,6 +1,6 @@
 """LowPack public API."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .archive import inspect_archive, pack, unpack, verify_archive
 from .models import ArchiveInfo, PackResult, VerificationResult
