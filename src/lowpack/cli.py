@@ -50,7 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
     packing.add_argument("--profile", choices=["general", "source", "telemetry"], default="general")
     packing.add_argument(
         "--goal",
-        choices=["balanced", "smallest", "fastest", "fastest-decode", "low-memory"],
+        choices=[
+            "balanced",
+            "smallest",
+            "prefer-store",
+            "prefer-zstd-low",
+            "avoid-zlib",
+        ],
         default="balanced",
     )
     packing.add_argument("--chunk-size", type=_size, default=1024 * 1024)
@@ -71,8 +77,12 @@ def build_parser() -> argparse.ArgumentParser:
     unpacking.add_argument("-o", "--output", default=".")
     unpacking.add_argument("--overwrite", action="store_true")
     unpacking.add_argument("--verify", action=argparse.BooleanOptionalAction, default=True)
-    unpacking.add_argument("--no-permissions", action="store_true")
-    unpacking.add_argument("--max-size", type=_size, default=100 * 1024**3)
+    unpacking.add_argument(
+        "--restore-permissions",
+        action="store_true",
+        help="opt in to restoring masked rwx mode bits from the archive",
+    )
+    unpacking.add_argument("--max-size", type=_size, default=8 * 1024**3)
     unpacking.add_argument("--max-files", type=int, default=100_000)
     unpacking.add_argument("--max-chunks", type=int, default=1_000_000)
     _add_json(unpacking)
@@ -90,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     extracting.add_argument("paths", nargs="+")
     extracting.add_argument("-o", "--output", default=".")
     extracting.add_argument("--overwrite", action="store_true")
-    extracting.add_argument("--max-size", type=_size, default=100 * 1024**3)
+    extracting.add_argument("--max-size", type=_size, default=8 * 1024**3)
     extracting.add_argument("--max-files", type=int, default=100_000)
     extracting.add_argument("--max-chunks", type=int, default=1_000_000)
     _add_json(extracting)
@@ -149,7 +159,10 @@ def _list_rows(manifest: dict[str, Any]) -> list[dict[str, Any]]:
                     record["packed_size"] / chunk_use[ref]
                     for ref, record in zip(item["chunks"], records)
                 ),
-                "codec": item["decision"]["final_codec"],
+                "codec": item["decision"]["preferred_codec"],
+                "actual_codecs": sorted(
+                    {decision["actual_codec"] for decision in item["chunk_decisions"]}
+                ),
                 "transformation": item["transform"].get("id", "none"),
                 "chunk_count": len(item["chunks"]),
                 "deduplicated": any(chunk_use[ref] > 1 for ref in item["chunks"]),
@@ -242,7 +255,7 @@ def run(args: argparse.Namespace) -> int:
             output=args.output,
             overwrite=args.overwrite,
             verify=args.verify,
-            restore_permissions=not args.no_permissions,
+            restore_permissions=args.restore_permissions,
             max_extract_size=args.max_size,
             max_files=args.max_files,
             max_chunks=args.max_chunks,
@@ -270,11 +283,12 @@ def run(args: argparse.Namespace) -> int:
         if args.json:
             print(_json(rows))
         else:
-            print("PATH\tSIZE\tPACKED\tCODEC\tTRANSFORM\tCHUNKS\tDEDUP\tHASH")
+            print("PATH\tSIZE\tPACKED\tPREFERRED\tACTUAL\tTRANSFORM\tCHUNKS\tDEDUP\tHASH")
             for row in rows:
                 print(
                     f"{row['path']}\t{row['original_size']}\t{row['packed_contribution']:.0f}\t"
-                    f"{row['codec']}\t{row['transformation']}\t{row['chunk_count']}\t"
+                    f"{row['codec']}\t{','.join(row['actual_codecs']) or '-'}\t"
+                    f"{row['transformation']}\t{row['chunk_count']}\t"
                     f"{row['deduplicated']}\t{row['hash']}"
                 )
         return 0

@@ -18,7 +18,7 @@ It is a terminal tool and Python library that stays completely on your laptop.
 
 Oh! One point I care about being clear on: LowPack does **not** universally
 outperform Zstandard, gzip, ZIP, Brotli, LZ4, or anything else. Results depend
-on the data, goal, codec versions, and machine. Version 0.1 uses store, zlib,
+on the data, policy, codec versions, and machine. Version 0.2 uses store, zlib,
 and Zstandard underneath. The LowPack part is deterministic packaging, safe
 indexing, deduplication, explainable selection, and reversible preparation.
 
@@ -53,6 +53,10 @@ lowpack unpack project.lpk -o restored
 Selective extraction is `lowpack extract project.lpk project/src -o selected`.
 I made `--overwrite` explicit on purpose, and `lowpack doctor` is there when
 you want a quick check of the local environment.
+
+Codec selection uses deterministic policy names: `balanced`, `smallest`,
+`prefer-store`, `prefer-zstd-low`, and `avoid-zlib`. They describe stable
+preferences rather than claiming to measure whole-machine speed or memory.
 
 ## How I think about profiles
 
@@ -94,9 +98,12 @@ See [determinism guarantees](docs/determinism.md).
 Archive extraction is the part I refuse to treat casually. LowPack rejects
 traversal, absolute/drive/UNC/NUL paths, duplicate and case-colliding
 destinations, unknown codecs, invalid sizes, unsafe parent symlinks, and
-archives over conservative limits. It verifies files through sibling
-temporary files before atomic replacement. Symlinks are neither packed by
-default nor restored in 0.1.
+archives over conservative limits. Ordinary files are verified and extracted
+one chunk at a time through sibling temporary files before atomic replacement.
+Canonical telemetry is explicitly capped because its v1 transform still needs
+an in-memory reconstruction. Archived permissions are restored only when
+`--restore-permissions` is requested, and special mode bits are never applied.
+Symlinks are neither packed by default nor restored.
 
 Untrusted archives should always be extracted with limits and full
 verification. Review [the security model](docs/security.md) and report
@@ -118,15 +125,19 @@ The table below is populated only by a real release-check run:
 
 Python 3.14.4 on Windows-11-10.0.26200-SP0 (AMD64); 1 warm-up, 3 measured runs. Fixed-seed generated corpus.
 
-| Method | Original | Packed | Ratio | Encode ms | Decode ms |
-|---|---:|---:|---:|---:|---:|
-| store | 1660822 | 1660822 | 1.000 | 0.002 | 0.001 |
-| gzip-6 | 1660822 | 871185 | 0.525 | 26.502 | 2.039 |
-| zstd-1 | 1660822 | 839013 | 0.505 | 1.646 | 1.054 |
-| zstd-3 | 1660822 | 840484 | 0.506 | 2.255 | 1.091 |
-| zstd-9 | 1660822 | 835586 | 0.503 | 12.260 | 1.020 |
-| lowpack-general | 1660822 | 943226 | 0.568 | 184.314 | 525.444 |
-| lowpack-source | 1660822 | 948173 | 0.571 | 199.957 | 519.541 |
+| Scope | Method | Original | Packed | Ratio | Encode ms | Decode ms |
+|---|---|---:|---:|---:|---:|---:|
+| raw-payload | store | 1660822 | 1660822 | 1.000 | 0.002 | 0.001 |
+| raw-payload | gzip-6 | 1660822 | 871185 | 0.525 | 28.793 | 1.724 |
+| raw-payload | zstd-1 | 1660822 | 839013 | 0.505 | 1.897 | 1.477 |
+| raw-payload | zstd-3 | 1660822 | 840484 | 0.506 | 2.683 | 1.054 |
+| raw-payload | zstd-9 | 1660822 | 835586 | 0.503 | 14.718 | 1.458 |
+| tar-container | tar+gzip-6 | 1660822 | 873570 | 0.526 | 34.889 | 17.429 |
+| tar-container | tar+zstd-1 | 1660822 | 842537 | 0.507 | 2.948 | 16.010 |
+| tar-container | tar+zstd-3 | 1660822 | 843799 | 0.508 | 2.943 | 15.226 |
+| tar-container | tar+zstd-9 | 1660822 | 838402 | 0.505 | 16.133 | 18.423 |
+| full-archive | lowpack-general | 1660822 | 973489 | 0.586 | 306.051 | 1136.959 |
+| full-archive | lowpack-source | 1660822 | 982141 | 0.591 | 439.086 | 1030.350 |
 <!-- BENCHMARK_END -->
 
 See [benchmark methodology](docs/benchmarking.md). Measurements apply only to
@@ -148,11 +159,13 @@ Functions return typed frozen result models.
 ## Limitations
 
 This is where I would rather be specific than sound finished too early. The
-format has no pre-1.0 forward-compatibility promise. Source dictionaries use
-bounded deterministic samples and only apply to Zstandard chunks. Telemetry
-canonical mode stores exact IEEE-754 values, but only exact mode preserves the
-original decimal spelling. Transformed extraction is bounded by declared
-limits but not yet streamed. See [all limitations](docs/limitations.md).
+format has no pre-1.0 forward-compatibility promise. Version 0.2 deliberately
+introduces manifest schema 2 after the 0.1 security review. Source dictionaries
+use bounded deterministic samples and only apply to Zstandard chunks.
+Telemetry canonical mode stores exact IEEE-754 values, but only exact mode
+preserves the original decimal spelling. Canonical transforms have a 64 MiB
+encoded/output cap until their decoder is streamed. See
+[all limitations](docs/limitations.md).
 
 ## Contributing and license
 

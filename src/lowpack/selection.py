@@ -1,4 +1,4 @@
-"""Bounded, explainable codec selection."""
+"""Bounded, deterministic, and explainable codec selection policies."""
 
 from __future__ import annotations
 
@@ -35,7 +35,12 @@ def select_codec(
     elif already_compressed:
         candidates = [("store", None), ("zstd", 1)]
     else:
-        levels = {"smallest": 9, "fastest": 1, "fastest-decode": 1, "low-memory": 1}
+        levels = {
+            "smallest": 9,
+            "prefer-store": 1,
+            "prefer-zstd-low": 1,
+            "avoid-zlib": 1,
+        }
         candidates = [("store", None), ("zlib", 6), ("zstd", levels.get(goal, 3))]
     measured: list[dict[str, Any]] = []
     for codec_name, codec_level in candidates:
@@ -48,9 +53,11 @@ def select_codec(
         # Selection must remain deterministic. Runtime is reported to the caller,
         # but never contributes to the archive decision or canonical manifest.
         penalty = 0
-        if goal in {"fastest", "fastest-decode"}:
+        if goal == "prefer-store":
             penalty = {"store": 0, "zstd": 1024, "zlib": 2048}[codec_name]
-        elif goal == "low-memory":
+        elif goal == "prefer-zstd-low":
+            penalty = {"store": 256, "zstd": 0, "zlib": 2048}[codec_name]
+        elif goal == "avoid-zlib":
             penalty = {"store": 0, "zstd": 512, "zlib": 2048}[codec_name]
         measured.append(
             {

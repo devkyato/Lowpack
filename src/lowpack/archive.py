@@ -7,6 +7,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import shutil
 import stat
 import tempfile
@@ -47,19 +48,63 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024
 MAX_MANIFEST_SIZE = 64 * 1024 * 1024
 MAX_FILES = 100_000
 MAX_CHUNKS = 1_000_000
-MAX_EXTRACT_SIZE = 100 * 1024 * 1024 * 1024
+MAX_EXTRACT_SIZE = 8 * 1024 * 1024 * 1024
+MAX_CHUNK_SIZE = 64 * 1024 * 1024
+MAX_TRANSFORM_SIZE = 64 * 1024 * 1024
 MAX_DICTIONARY_SAMPLE = 1024 * 1024
 MAX_DICTIONARY_FILE_SAMPLE = 64 * 1024
 DICTIONARY_SIZE = 8192
+MANIFEST_SCHEMA_MAJOR = 2
+MANIFEST_SCHEMA_MINOR = 0
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
-def _iter_file_chunks(path: Path, chunk_size: int) -> Iterator[bytes]:
-    with path.open("rb") as stream:
-        while True:
-            data = stream.read(chunk_size)
-            if not data:
-                break
-            yield data
+def _iter_stream_chunks(stream: BinaryIO, chunk_size: int) -> Iterator[bytes]:
+    while True:
+        data = stream.read(chunk_size)
+        if not data:
+            break
+        yield data
+
+
+def _file_identity(path: Path) -> tuple[int, int]:
+    value = path.stat()
+    return value.st_dev, value.st_ino
+
+
+def _snapshot_signature(value: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _register_archive_path(registry: dict[str, tuple[str, str]], path: str, kind: str) -> None:
+    key = collision_key(path)
+    existing = registry.get(key)
+    if existing is not None:
+        raise ValueError(
+            f"duplicate or case-colliding archive path: {path} "
+            f"conflicts with {existing[0]}"
+        )
+    registry[key] = (path, kind)
+
+
+def _reserved_identity(
+    path: Path,
+    reserved_paths: set[Path],
+    reserved_identities: set[tuple[int, int]],
+) -> bool:
+    resolved = path.resolve(strict=False)
+    if resolved in reserved_paths:
+        return True
+    try:
+        return _file_identity(path) in reserved_identities
+    except OSError:
+        return False
 
 
 def _patterns_match(path: str, patterns: Sequence[str]) -> bool:
@@ -75,13 +120,23 @@ def _collect_inputs(
     includes: Sequence[str],
     include_all: bool,
     follow_symlinks: bool,
+    reserved: Sequence[Path] = (),
 ) -> tuple[list[tuple[Path, str]], list[str], list[str]]:
     files: list[tuple[Path, str]] = []
     directories: list[str] = []
     excluded: list[str] = []
     defaults = () if include_all or profile != "source" else DEFAULT_EXCLUDES
     patterns = tuple(defaults) + tuple(excludes)
-    seen: set[str] = set()
+    registry: dict[str, tuple[str, str]] = {}
+    file_identities: set[tuple[int, int]] = set()
+    directory_identities: set[tuple[int, int]] = set()
+    reserved_paths = {path.resolve(strict=False) for path in reserved}
+    reserved_identities: set[tuple[int, int]] = set()
+    for path in reserved:
+        try:
+            reserved_identities.add(_file_identity(path))
+        except OSError:
+            pass
     for raw_input in inputs:
         source = Path(raw_input)
         if not source.exists():
@@ -90,18 +145,33 @@ def _collect_inputs(
             excluded.append(str(source))
             continue
         if source.is_file():
+            if _reserved_identity(source, reserved_paths, reserved_identities):
+                raise ValueError(f"output archive cannot also be an input: {source}")
             archive_path = normalize_archive_path(source.name)
             if not includes or _patterns_match(archive_path, includes):
+                identity = _file_identity(source)
+                if identity in file_identities:
+                    raise ValueError(f"duplicate input file identity: {source}")
+                _register_archive_path(registry, archive_path, "file")
+                file_identities.add(identity)
                 files.append((source, archive_path))
             continue
         root_name = normalize_archive_path(source.name)
-        directories.append(root_name)
         for current, dir_names, file_names in os.walk(source, followlinks=follow_symlinks):
             current_path = Path(current)
+            directory_identity = _file_identity(current_path)
+            if directory_identity in directory_identities:
+                raise ValueError(
+                    f"directory traversal cycle or duplicate input identity: {current_path}"
+                )
+            directory_identities.add(directory_identity)
             relative = current_path.relative_to(source)
             archive_dir = (
                 root_name if str(relative) == "." else f"{root_name}/{relative.as_posix()}"
             )
+            archive_dir = normalize_archive_path(archive_dir)
+            _register_archive_path(registry, archive_dir, "directory")
+            directories.append(archive_dir)
             kept_dirs: list[str] = []
             for name in sorted(dir_names):
                 candidate = normalize_archive_path(f"{archive_dir}/{name}")
@@ -113,7 +183,6 @@ def _collect_inputs(
                 else:
                     kept_dirs.append(name)
             dir_names[:] = kept_dirs
-            directories.append(normalize_archive_path(archive_dir))
             for name in sorted(file_names):
                 disk_path = current_path / name
                 archive_path = normalize_archive_path(f"{archive_dir}/{name}")
@@ -123,10 +192,14 @@ def _collect_inputs(
                     excluded.append(archive_path)
                 elif includes and not _patterns_match(archive_path, includes):
                     excluded.append(archive_path)
+                elif _reserved_identity(disk_path, reserved_paths, reserved_identities):
+                    excluded.append(archive_path)
                 else:
-                    if archive_path in seen:
-                        raise ValueError(f"duplicate archive path: {archive_path}")
-                    seen.add(archive_path)
+                    identity = _file_identity(disk_path)
+                    if identity in file_identities:
+                        raise ValueError(f"duplicate input file identity: {disk_path}")
+                    _register_archive_path(registry, archive_path, "file")
+                    file_identities.add(identity)
                     files.append((disk_path, archive_path))
     return sorted(files, key=lambda item: item[1]), sorted(set(directories)), sorted(set(excluded))
 
@@ -156,7 +229,8 @@ def _train_source_dictionaries(
         group = category(archive_path)
         if group == "other" or totals.get(group, 0) >= MAX_DICTIONARY_SAMPLE:
             continue
-        sample = disk_path.read_bytes()[:MAX_DICTIONARY_FILE_SAMPLE]
+        with disk_path.open("rb") as sample_stream:
+            sample = sample_stream.read(MAX_DICTIONARY_FILE_SAMPLE)
         if not sample or b"\x00" in sample:
             continue
         sample = sample[: MAX_DICTIONARY_SAMPLE - totals.get(group, 0)]
@@ -201,24 +275,21 @@ def pack(
 ) -> PackResult:
     if profile not in {"general", "source", "telemetry"}:
         raise ValueError(f"unknown profile: {profile}")
-    if goal not in {"balanced", "smallest", "fastest", "fastest-decode", "low-memory"}:
+    if goal not in {
+        "balanced",
+        "smallest",
+        "prefer-store",
+        "prefer-zstd-low",
+        "avoid-zlib",
+    }:
         raise ValueError(f"unknown goal: {goal}")
     if codec is not None and codec not in CODECS:
         raise ValueError(f"unknown codec: {codec}")
-    if chunk_size < 4096 or chunk_size > 1024 * 1024 * 1024:
-        raise ValueError("chunk size must be between 4 KiB and 1 GiB")
+    if chunk_size < 4096 or chunk_size > MAX_CHUNK_SIZE:
+        raise ValueError("chunk size must be between 4 KiB and 64 MiB")
     target = Path(archive)
     if target.exists() and not overwrite:
         raise FileExistsError(target)
-    files, directories, excluded = _collect_inputs(
-        inputs,
-        profile=profile,
-        excludes=exclude,
-        includes=include,
-        include_all=include_all,
-        follow_symlinks=follow_symlinks,
-    )
-    source_dictionaries = _train_source_dictionaries(files, profile)
     target.parent.mkdir(parents=True, exist_ok=True)
     temp_fd, temp_name = tempfile.mkstemp(
         prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
@@ -230,90 +301,141 @@ def pack(
     total_original = 0
     selection_ns = 0
     try:
+        files, directories, excluded = _collect_inputs(
+            inputs,
+            profile=profile,
+            excludes=exclude,
+            includes=include,
+            include_all=include_all,
+            follow_symlinks=follow_symlinks,
+            reserved=(target, temp_path),
+        )
+        source_dictionaries = _train_source_dictionaries(files, profile)
+        dictionary_ids = {
+            group: sha256_hex(dictionary)
+            for group, dictionary in source_dictionaries.items()
+        }
         with temp_path.open("w+b") as stream:
             write_header(stream)
             for disk_path, archive_path in files:
-                raw_size = disk_path.stat().st_size
-                with disk_path.open("rb") as sample_stream:
-                    sample = sample_stream.read(MAX_SAMPLE)
-                transformed: bytes | None = None
-                reconstructed: bytes | None = None
-                transform_metadata: dict[str, Any] = {"id": "none", "mode": "exact"}
-                if profile == "telemetry" and disk_path.suffix.lower() == ".csv":
-                    raw = disk_path.read_bytes()
-                    encoded = TRANSFORMER.encode(
-                        raw, TransformOptions(mode=telemetry_mode, time_field=time_field)
-                    )
-                    transformed = encoded.data
-                    transform_metadata = encoded.metadata
-                    reconstructed = TRANSFORMER.decode(encoded)
-                    sample = transformed[:MAX_SAMPLE]
-                selection: Selection = select_codec(
-                    sample,
-                    goal=goal,
-                    requested=codec,
-                    level=level,
-                    already_compressed=is_already_compressed(sample),
-                )
-                selection_ns += selection.elapsed_ns
-                dictionary = source_dictionaries.get(category(archive_path))
-                refs: list[str] = []
-                file_hash = hashlib.sha256()
-                encoded_hash = hashlib.sha256()
-                encoded_size = 0
-                chunks = (
-                    (
-                        transformed[index : index + chunk_size]
-                        for index in range(0, len(transformed), chunk_size)
-                    )
-                    if transformed is not None
-                    else _iter_file_chunks(disk_path, chunk_size)
-                )
-                for raw_chunk in chunks:
-                    encoded_hash.update(raw_chunk)
-                    encoded_size += len(raw_chunk)
-                    chunk_id = sha256_hex(raw_chunk)
-                    refs.append(chunk_id)
-                    if chunk_id in chunk_records:
-                        continue
-                    if selection.codec == "zstd" and dictionary is not None:
-                        packed = zstandard.ZstdCompressor(
-                            level=3 if selection.level is None else selection.level,
-                            dict_data=zstandard.ZstdCompressionDict(dictionary),
-                        ).compress(raw_chunk)
+                with disk_path.open("rb") as source_stream:
+                    before = os.fstat(source_stream.fileno())
+                    raw_size = before.st_size
+                    sample = source_stream.read(MAX_SAMPLE)
+                    source_stream.seek(0)
+                    transformed: bytes | None = None
+                    reconstructed: bytes | None = None
+                    transform_metadata: dict[str, Any] = {"id": "none", "mode": "exact"}
+                    if profile == "telemetry" and disk_path.suffix.lower() == ".csv":
+                        if raw_size > MAX_TRANSFORM_SIZE:
+                            raise ValueError(
+                                f"telemetry input exceeds {MAX_TRANSFORM_SIZE} byte "
+                                f"in-memory transform limit: {disk_path}"
+                            )
+                        raw = source_stream.read(raw_size + 1)
+                        if len(raw) != raw_size:
+                            raise OSError(f"source changed while packing: {disk_path}")
+                        encoded = TRANSFORMER.encode(
+                            raw,
+                            TransformOptions(mode=telemetry_mode, time_field=time_field),
+                        )
+                        transformed = encoded.data
+                        transform_metadata = encoded.metadata
+                        reconstructed = TRANSFORMER.decode(
+                            encoded, max_output_size=MAX_TRANSFORM_SIZE
+                        )
+                        sample = transformed[:MAX_SAMPLE]
+                        chunks: Iterator[bytes] = (
+                            transformed[index : index + chunk_size]
+                            for index in range(0, len(transformed), chunk_size)
+                        )
                     else:
-                        packed = CODECS[selection.codec].compress(
-                            raw_chunk, level=selection.level
-                        )
-                    offset = stream.tell()
-                    stream.write(
-                        CHUNK_HEADER.pack(
-                            CHUNK_MAGIC,
-                            CODEC_IDS[selection.codec],
-                            len(raw_chunk),
-                            len(packed),
-                            bytes.fromhex(chunk_id),
-                        )
+                        chunks = _iter_stream_chunks(source_stream, chunk_size)
+                    selection: Selection = select_codec(
+                        sample,
+                        goal=goal,
+                        requested=codec,
+                        level=level,
+                        already_compressed=is_already_compressed(sample),
                     )
-                    stream.write(packed)
-                    chunk_records[chunk_id] = {
-                        "codec": selection.codec,
-                        "level": selection.level,
-                        "offset": offset,
-                        "packed_size": len(packed),
-                        "raw_size": len(raw_chunk),
-                    }
-                    if selection.codec == "zstd" and dictionary is not None:
-                        chunk_records[chunk_id]["dictionary"] = base64.b64encode(
-                            dictionary
-                        ).decode("ascii")
-                if reconstructed is not None:
-                    file_hash.update(reconstructed)
-                    output_size = len(reconstructed)
-                else:
-                    for raw_chunk in _iter_file_chunks(disk_path, chunk_size):
-                        file_hash.update(raw_chunk)
-                    output_size = raw_size
+                    selection_ns += selection.elapsed_ns
+                    dictionary = source_dictionaries.get(category(archive_path))
+                    dictionary_id = dictionary_ids.get(category(archive_path))
+                    refs: list[str] = []
+                    chunk_decisions: list[dict[str, Any]] = []
+                    file_hash = hashlib.sha256()
+                    encoded_hash = hashlib.sha256()
+                    encoded_size = 0
+                    for raw_chunk in chunks:
+                        encoded_hash.update(raw_chunk)
+                        encoded_size += len(raw_chunk)
+                        if transformed is None:
+                            file_hash.update(raw_chunk)
+                        chunk_id = sha256_hex(raw_chunk)
+                        refs.append(chunk_id)
+                        reused = chunk_id in chunk_records
+                        if not reused:
+                            if selection.codec == "zstd" and dictionary is not None:
+                                packed = zstandard.ZstdCompressor(
+                                    level=3 if selection.level is None else selection.level,
+                                    dict_data=zstandard.ZstdCompressionDict(dictionary),
+                                ).compress(raw_chunk)
+                            else:
+                                packed = CODECS[selection.codec].compress(
+                                    raw_chunk, level=selection.level
+                                )
+                            offset = stream.tell()
+                            stream.write(
+                                CHUNK_HEADER.pack(
+                                    CHUNK_MAGIC,
+                                    CODEC_IDS[selection.codec],
+                                    len(raw_chunk),
+                                    len(packed),
+                                    bytes.fromhex(chunk_id),
+                                )
+                            )
+                            stream.write(packed)
+                            chunk_record: dict[str, Any] = {
+                                "codec": selection.codec,
+                                "level": selection.level,
+                                "offset": offset,
+                                "packed_size": len(packed),
+                                "raw_size": len(raw_chunk),
+                            }
+                            if (
+                                selection.codec == "zstd"
+                                and dictionary is not None
+                                and dictionary_id is not None
+                            ):
+                                chunk_record["dictionary_id"] = dictionary_id
+                            chunk_records[chunk_id] = chunk_record
+                        actual = chunk_records[chunk_id]
+                        chunk_decisions.append(
+                            {
+                                "actual_codec": actual["codec"],
+                                "actual_level": actual["level"],
+                                "chunk": chunk_id,
+                                "dictionary_id": actual.get("dictionary_id"),
+                                "reason": (
+                                    "reused an existing content-addressed representation"
+                                    if reused
+                                    else "stored using this file's preferred policy"
+                                ),
+                                "reused": reused,
+                            }
+                        )
+                    after = os.fstat(source_stream.fileno())
+                    if _snapshot_signature(before) != _snapshot_signature(after):
+                        raise OSError(f"source changed while packing: {disk_path}")
+                    if transformed is None:
+                        if encoded_size != raw_size:
+                            raise OSError(f"source changed while packing: {disk_path}")
+                        output_size = encoded_size
+                    else:
+                        if reconstructed is None:
+                            raise AssertionError("transformed source was not reconstructed")
+                        file_hash.update(reconstructed)
+                        output_size = len(reconstructed)
                 total_original += output_size
                 canonical_candidates = [
                     {
@@ -327,11 +449,12 @@ def pack(
                 ]
                 decision = {
                     "candidates": canonical_candidates,
-                    "final_codec": selection.codec,
+                    "preferred_codec": selection.codec,
                     "level": selection.level,
                     "reason": selection.reason,
                 }
                 record: dict[str, Any] = {
+                    "chunk_decisions": chunk_decisions,
                     "chunks": refs,
                     "encoded_hash": encoded_hash.hexdigest(),
                     "encoded_size": encoded_size,
@@ -345,8 +468,13 @@ def pack(
                 if profile == "source":
                     record["source_category"] = category(archive_path)
                 if store_permissions:
-                    record["mode"] = stat.S_IMODE(disk_path.stat().st_mode)
+                    record["mode"] = stat.S_IMODE(before.st_mode) & 0o777
                 file_records.append(record)
+            used_dictionary_ids = {
+                record["dictionary_id"]
+                for record in chunk_records.values()
+                if "dictionary_id" in record
+            }
             manifest: dict[str, Any] = {
                 "chunk_size": chunk_size,
                 "chunks": chunk_records,
@@ -356,18 +484,31 @@ def pack(
                     "zstd": zstandard.__version__,
                 },
                 "directories": directories,
+                "dictionaries": {
+                    dictionary_ids[group]: {
+                        "data": base64.b64encode(dictionary).decode("ascii"),
+                        "hash": dictionary_ids[group],
+                        "size": len(dictionary),
+                    }
+                    for group, dictionary in sorted(source_dictionaries.items())
+                    if dictionary_ids[group] in used_dictionary_ids
+                },
                 "excluded": excluded,
                 "files": file_records,
                 "format": {"major": VERSION_MAJOR, "minor": VERSION_MINOR},
                 "goal": goal,
                 "lowpack_version": __version__,
+                "manifest_schema": {
+                    "major": MANIFEST_SCHEMA_MAJOR,
+                    "minor": MANIFEST_SCHEMA_MINOR,
+                },
                 "profile": profile,
                 "source_dictionaries": {
                     group: {
-                        "bytes": len(dictionary),
-                        "hash": sha256_hex(dictionary),
+                        "dictionary_id": dictionary_ids[group],
                     }
                     for group, dictionary in sorted(source_dictionaries.items())
+                    if dictionary_ids[group] in used_dictionary_ids
                 },
                 "store_permissions": store_permissions,
             }
@@ -420,7 +561,12 @@ def _read_manifest(stream: BinaryIO) -> tuple[dict[str, Any], bytes, Any]:
     return manifest, data, footer
 
 
-def _read_chunk(stream: BinaryIO, chunk_id: str, record: dict[str, Any]) -> bytes:
+def _read_chunk(
+    stream: BinaryIO,
+    chunk_id: str,
+    record: dict[str, Any],
+    dictionaries: dict[str, bytes],
+) -> bytes:
     stream.seek(int(record["offset"]))
     header = stream.read(CHUNK_HEADER.size)
     if len(header) != CHUNK_HEADER.size:
@@ -437,8 +583,9 @@ def _read_chunk(stream: BinaryIO, chunk_id: str, record: dict[str, Any]) -> byte
     if len(payload) != packed_size:
         raise FormatError(f"truncated chunk payload {chunk_id}")
     try:
-        if codec_name == "zstd" and "dictionary" in record:
-            dictionary = base64.b64decode(record["dictionary"], validate=True)
+        dictionary_id = record.get("dictionary_id")
+        if codec_name == "zstd" and dictionary_id is not None:
+            dictionary = dictionaries[dictionary_id]
             raw = zstandard.ZstdDecompressor(
                 dict_data=zstandard.ZstdCompressionDict(dictionary)
             ).decompress(payload, max_output_size=raw_size)
@@ -460,77 +607,299 @@ def _validate_manifest(
     max_files: int = MAX_FILES,
     max_chunks: int = MAX_CHUNKS,
     max_extract_size: int = MAX_EXTRACT_SIZE,
+    manifest_offset: int | None = None,
 ) -> None:
+    def integer(value: Any, *, minimum: int = 0) -> bool:
+        return not isinstance(value, bool) and isinstance(value, int) and value >= minimum
+
+    def hash_string(value: Any) -> bool:
+        return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
+
     files = manifest.get("files")
     chunks = manifest.get("chunks")
     directories = manifest.get("directories")
+    dictionaries = manifest.get("dictionaries")
+    excluded_values = manifest.get("excluded")
     if (
         not isinstance(files, list)
         or not isinstance(chunks, dict)
         or not isinstance(directories, list)
+        or not isinstance(dictionaries, dict)
     ):
         raise FormatError("manifest is missing required collections")
-    if len(files) > max_files or len(chunks) > max_chunks:
+    if (
+        len(files) + len(directories) > max_files
+        or len(chunks) > max_chunks
+        or len(dictionaries) > max_chunks
+        or (
+            isinstance(excluded_values, list)
+            and len(excluded_values) > max_files
+        )
+    ):
         raise FormatError("archive exceeds object-count safety limit")
     format_record = manifest.get("format")
+    schema_record = manifest.get("manifest_schema")
     chunk_size = manifest.get("chunk_size")
     if (
         not isinstance(format_record, dict)
         or format_record.get("major") != VERSION_MAJOR
         or format_record.get("minor") != VERSION_MINOR
-        or not isinstance(chunk_size, int)
-        or chunk_size < 4096
-        or chunk_size > 1024 * 1024 * 1024
+        or not isinstance(schema_record, dict)
+        or schema_record.get("major") != MANIFEST_SCHEMA_MAJOR
+        or schema_record.get("minor") != MANIFEST_SCHEMA_MINOR
+        or not integer(chunk_size)
     ):
         raise FormatError("unsupported or inconsistent manifest format settings")
+    chunk_size_value = cast(int, chunk_size)
+    if chunk_size_value < 4096 or chunk_size_value > MAX_CHUNK_SIZE:
+        raise FormatError("unsupported or inconsistent manifest chunk size")
+    if (
+        manifest.get("profile") not in {"general", "source", "telemetry"}
+        or manifest.get("goal")
+        not in {
+            "balanced",
+            "smallest",
+            "prefer-store",
+            "prefer-zstd-low",
+            "avoid-zlib",
+        }
+        or not isinstance(manifest.get("lowpack_version"), str)
+        or not isinstance(manifest.get("store_permissions"), bool)
+        or not isinstance(manifest.get("codec_versions"), dict)
+        or any(
+            not isinstance(name, str) or not isinstance(version, str)
+            for name, version in manifest["codec_versions"].items()
+        )
+        or not isinstance(manifest.get("excluded"), list)
+        or any(not isinstance(value, str) for value in manifest["excluded"])
+        or not isinstance(manifest.get("source_dictionaries"), dict)
+    ):
+        raise FormatError("invalid manifest metadata")
+    dictionary_data: dict[str, bytes] = {}
+    for dictionary_id, record in dictionaries.items():
+        if (
+            not hash_string(dictionary_id)
+            or not isinstance(record, dict)
+            or record.get("hash") != dictionary_id
+            or not integer(record.get("size"))
+            or record["size"] == 0
+            or record["size"] > 64 * 1024
+            or not isinstance(record.get("data"), str)
+        ):
+            raise FormatError("invalid compression dictionary record")
+        try:
+            data = base64.b64decode(record["data"], validate=True)
+        except (ValueError, TypeError) as exc:
+            raise FormatError("invalid compression dictionary encoding") from exc
+        if len(data) != record["size"] or sha256_hex(data) != dictionary_id:
+            raise FormatError("compression dictionary hash or size mismatch")
+        dictionary_data[dictionary_id] = data
+    source_dictionary_ids: set[str] = set()
+    for group, record in manifest["source_dictionaries"].items():
+        if (
+            not isinstance(group, str)
+            or not isinstance(record, dict)
+            or record.get("dictionary_id") not in dictionaries
+        ):
+            raise FormatError("invalid source dictionary reference")
+        source_dictionary_ids.add(record["dictionary_id"])
+    chunk_spans: list[tuple[int, int, str]] = []
     for chunk_id, record in chunks.items():
         if (
-            not isinstance(chunk_id, str)
-            or len(chunk_id) != 64
+            not hash_string(chunk_id)
             or not isinstance(record, dict)
             or record.get("codec") not in CODECS
-            or not isinstance(record.get("offset"), int)
-            or not isinstance(record.get("raw_size"), int)
-            or not isinstance(record.get("packed_size"), int)
+            or not integer(record.get("offset"))
+            or not integer(record.get("raw_size"))
+            or not integer(record.get("packed_size"))
             or record["offset"] < HEADER.size
-            or record["raw_size"] < 0
-            or record["raw_size"] > chunk_size
-            or record["packed_size"] < 0
+            or record["raw_size"] == 0
+            or record["raw_size"] > chunk_size_value
+            or record["packed_size"] == 0
+            or (
+                record.get("level") is not None
+                and (
+                    isinstance(record.get("level"), bool)
+                    or not isinstance(record.get("level"), int)
+                )
+            )
         ):
             raise FormatError("invalid chunk index record")
-        try:
-            bytes.fromhex(chunk_id)
-            if "dictionary" in record:
-                dictionary = base64.b64decode(record["dictionary"], validate=True)
-                if len(dictionary) > 64 * 1024:
-                    raise FormatError("compression dictionary exceeds safety limit")
-        except (ValueError, TypeError) as exc:
-            raise FormatError("invalid chunk hash or dictionary") from exc
+        dictionary_id = record.get("dictionary_id")
+        if dictionary_id is not None and (
+            record["codec"] != "zstd" or dictionary_id not in dictionary_data
+        ):
+            raise FormatError("dictionary reference is inconsistent with chunk codec")
+        end = record["offset"] + CHUNK_HEADER.size + record["packed_size"]
+        if manifest_offset is not None and end > manifest_offset:
+            raise FormatError(f"chunk boundary outside payload area: {chunk_id}")
+        chunk_spans.append((record["offset"], end, chunk_id))
+    used_dictionary_ids = {
+        record["dictionary_id"]
+        for record in chunks.values()
+        if "dictionary_id" in record
+    }
+    if used_dictionary_ids != set(dictionaries):
+        raise FormatError("manifest contains unused or missing compression dictionaries")
+    if (
+        manifest["profile"] == "source"
+        and source_dictionary_ids != used_dictionary_ids
+    ) or (manifest["profile"] != "source" and source_dictionary_ids):
+        raise FormatError("source dictionary table is inconsistent with archive profile")
+    if manifest_offset is not None:
+        cursor = HEADER.size
+        for start, end, chunk_id in sorted(chunk_spans):
+            if start != cursor:
+                raise FormatError(f"chunk ordering or overlap is invalid near {chunk_id}")
+            cursor = end
+        if cursor != manifest_offset:
+            raise FormatError("payload area and manifest boundary are inconsistent")
     paths: set[str] = set()
     collisions: set[str] = set()
     total = 0
+    total_refs = 0
+    referenced_chunks: set[str] = set()
+    representations_seen: set[str] = set()
     for item in files:
         if not isinstance(item, dict):
             raise FormatError("invalid file record")
-        path = normalize_archive_path(str(item.get("path", "")))
+        if not isinstance(item.get("path"), str):
+            raise FormatError("invalid file path type")
+        path = normalize_archive_path(item["path"])
         key = collision_key(path)
         if path in paths or key in collisions:
             raise FormatError(f"duplicate or case-colliding destination: {path}")
         paths.add(path)
         collisions.add(key)
         size = item.get("size")
-        if not isinstance(size, int) or size < 0:
+        source_size = item.get("source_size")
+        encoded_size = item.get("encoded_size")
+        if (
+            not integer(size)
+            or not integer(source_size)
+            or not integer(encoded_size)
+            or not hash_string(item.get("hash"))
+            or not hash_string(item.get("encoded_hash"))
+        ):
             raise FormatError(f"invalid declared file size: {path}")
-        total += size
+        size_value = cast(int, size)
+        source_size_value = cast(int, source_size)
+        encoded_size_value = cast(int, encoded_size)
+        total += size_value
         refs = item.get("chunks")
-        if not isinstance(refs, list) or len(refs) > max_chunks:
+        if (
+            not isinstance(refs, list)
+            or any(not hash_string(ref) for ref in refs)
+            or len(refs) > max_chunks
+        ):
             raise FormatError(f"invalid chunk references: {path}")
         if any(ref not in chunks for ref in refs):
             raise FormatError(f"file references an unknown chunk: {path}")
+        total_refs += len(refs)
+        if total_refs > max_chunks:
+            raise FormatError("archive exceeds aggregate chunk-reference safety limit")
+        if sum(chunks[ref]["raw_size"] for ref in refs) != encoded_size_value:
+            raise FormatError(f"encoded size disagrees with chunk references: {path}")
+        referenced_chunks.update(refs)
+        transform = item.get("transform")
+        if not isinstance(transform, dict):
+            raise FormatError(f"invalid transform schema: {path}")
+        transform_id = transform.get("id")
+        transform_mode = transform.get("mode")
+        if transform_id == "none":
+            if transform_mode != "exact":
+                raise FormatError(f"invalid identity transform: {path}")
+        elif transform_id == TRANSFORMER.id:
+            if transform_mode not in {"exact", "canonical"}:
+                raise FormatError(f"invalid telemetry transform mode: {path}")
+            for field in ("applied", "detected"):
+                values = transform.get(field)
+                if (
+                    not isinstance(values, list)
+                    or len(values) > 4096
+                    or any(not isinstance(value, str) for value in values)
+                ):
+                    raise FormatError(f"invalid telemetry transform metadata: {path}")
+            if transform_mode == "canonical" and (
+                size_value > MAX_TRANSFORM_SIZE
+                or encoded_size_value > MAX_TRANSFORM_SIZE
+            ):
+                raise FormatError(f"transformed file exceeds safety limit: {path}")
+        else:
+            raise FormatError(f"unsupported transform: {path}")
+        if transform_mode == "exact" and (
+            size_value != encoded_size_value
+            or source_size_value != size_value
+            or item["hash"] != item["encoded_hash"]
+        ):
+            raise FormatError(f"identity transform sizes or hashes disagree: {path}")
+        decision = item.get("decision")
+        if (
+            not isinstance(decision, dict)
+            or decision.get("preferred_codec") not in CODECS
+            or not isinstance(decision.get("reason"), str)
+            or (
+                decision.get("level") is not None
+                and (
+                    isinstance(decision.get("level"), bool)
+                    or not isinstance(decision.get("level"), int)
+                )
+            )
+            or not isinstance(decision.get("candidates"), list)
+            or not decision["candidates"]
+            or len(decision["candidates"]) > 32
+        ):
+            raise FormatError(f"invalid codec decision schema: {path}")
+        for candidate in decision["candidates"]:
+            if (
+                not isinstance(candidate, dict)
+                or candidate.get("codec") not in CODECS
+                or (
+                    candidate.get("level") is not None
+                    and (
+                        isinstance(candidate.get("level"), bool)
+                        or not isinstance(candidate.get("level"), int)
+                    )
+                )
+                or not integer(candidate.get("packed_bytes"))
+                or not integer(candidate.get("sample_bytes"))
+                or candidate["sample_bytes"] > MAX_SAMPLE
+                or not integer(candidate.get("score"))
+            ):
+                raise FormatError(f"invalid codec candidate schema: {path}")
+        chunk_decisions = item.get("chunk_decisions")
+        if not isinstance(chunk_decisions, list) or len(chunk_decisions) != len(refs):
+            raise FormatError(f"invalid actual chunk decision list: {path}")
+        for ref, actual in zip(refs, chunk_decisions):
+            chunk_record = chunks[ref]
+            expected_reuse = ref in representations_seen
+            if (
+                not isinstance(actual, dict)
+                or actual.get("chunk") != ref
+                or actual.get("actual_codec") != chunk_record["codec"]
+                or actual.get("actual_level") != chunk_record.get("level")
+                or actual.get("dictionary_id") != chunk_record.get("dictionary_id")
+                or actual.get("reused") is not expected_reuse
+                or not isinstance(actual.get("reason"), str)
+            ):
+                raise FormatError(f"inconsistent actual chunk decision: {path}")
+            representations_seen.add(ref)
+        if "mode" in item and (
+            not manifest["store_permissions"]
+            or not integer(item["mode"])
+            or item["mode"] > 0o777
+        ):
+            raise FormatError(f"invalid stored permission mode: {path}")
+        if "source_category" in item and not isinstance(item["source_category"], str):
+            raise FormatError(f"invalid source category: {path}")
     if total > max_extract_size:
         raise FormatError("archive exceeds default extraction-size safety limit")
+    if referenced_chunks != set(chunks):
+        raise FormatError("manifest contains unreferenced chunk records")
     for directory_value in directories:
-        directory = normalize_archive_path(str(directory_value))
+        if not isinstance(directory_value, str):
+            raise FormatError("invalid directory path type")
+        directory = normalize_archive_path(directory_value)
         key = collision_key(directory)
         if directory in paths or key in collisions:
             raise FormatError(f"duplicate or case-colliding destination: {directory}")
@@ -544,11 +913,18 @@ def _validate_manifest(
             parent = parent.parent
 
 
+def _dictionary_bytes(manifest: dict[str, Any]) -> dict[str, bytes]:
+    return {
+        dictionary_id: base64.b64decode(record["data"], validate=True)
+        for dictionary_id, record in manifest["dictionaries"].items()
+    }
+
+
 def inspect_archive(archive: os.PathLike[str] | str) -> ArchiveInfo:
     path = Path(archive)
     with path.open("rb") as stream:
         manifest, _data, footer = _read_manifest(stream)
-        _validate_manifest(manifest)
+        _validate_manifest(manifest, manifest_offset=footer.manifest_offset)
         integrity = (
             "valid"
             if _hash_body(stream, footer.manifest_offset + footer.manifest_size)
@@ -588,27 +964,49 @@ def verify_archive(archive: os.PathLike[str] | str, *, full: bool = True) -> Ver
     try:
         with Path(archive).open("rb") as stream:
             manifest, _data, footer = _read_manifest(stream)
-            _validate_manifest(manifest)
+            _validate_manifest(manifest, manifest_offset=footer.manifest_offset)
             actual_body_hash = _hash_body(stream, footer.manifest_offset + footer.manifest_size)
             if actual_body_hash != footer.body_hash:
                 raise FormatError("archive body hash mismatch")
             chunks = manifest["chunks"]
+            dictionaries = _dictionary_bytes(manifest)
             if full:
-                cache: dict[str, bytes] = {}
-                for chunk_id, record in chunks.items():
-                    cache[chunk_id] = _read_chunk(stream, chunk_id, record)
-                    chunks_verified += 1
+                verified_chunks: set[str] = set()
                 for item in manifest["files"]:
-                    encoded = b"".join(cache[chunk_id] for chunk_id in item["chunks"])
-                    if (
-                        len(encoded) != item["encoded_size"]
-                        or sha256_hex(encoded) != item["encoded_hash"]
+                    encoded_hash = hashlib.sha256()
+                    encoded_size = 0
+                    output_hash = hashlib.sha256()
+                    encoded_buffer = bytearray()
+                    identity = item["transform"]["mode"] == "exact"
+                    for chunk_id in item["chunks"]:
+                        raw = _read_chunk(
+                            stream, chunk_id, chunks[chunk_id], dictionaries
+                        )
+                        verified_chunks.add(chunk_id)
+                        encoded_hash.update(raw)
+                        encoded_size += len(raw)
+                        if identity:
+                            output_hash.update(raw)
+                        else:
+                            if len(encoded_buffer) + len(raw) > MAX_TRANSFORM_SIZE:
+                                raise FormatError(
+                                    f"transformed input exceeds safety limit: {item['path']}"
+                                )
+                            encoded_buffer.extend(raw)
+                    if encoded_size != item["encoded_size"] or (
+                        encoded_hash.hexdigest() != item["encoded_hash"]
                     ):
                         raise FormatError(f"encoded file hash mismatch: {item['path']}")
-                    decoded = _decode_file(encoded, item)
-                    if len(decoded) != item["size"] or sha256_hex(decoded) != item["hash"]:
+                    if identity:
+                        output_size = encoded_size
+                    else:
+                        decoded = _decode_file(bytes(encoded_buffer), item)
+                        output_hash.update(decoded)
+                        output_size = len(decoded)
+                    if output_size != item["size"] or output_hash.hexdigest() != item["hash"]:
                         raise FormatError(f"file reconstruction hash mismatch: {item['path']}")
                     files_verified += 1
+                chunks_verified = len(verified_chunks)
             else:
                 for chunk_id, record in chunks.items():
                     offset = int(record["offset"])
@@ -645,7 +1043,14 @@ def verify_archive(archive: os.PathLike[str] | str, *, full: bool = True) -> Ver
 def _decode_file(encoded: bytes, item: dict[str, Any]) -> bytes:
     transform = item.get("transform", {"id": "none"})
     if transform.get("id") == TRANSFORMER.id:
-        return TRANSFORMER.decode(EncodedData(encoded, transform))
+        try:
+            return TRANSFORMER.decode(
+                EncodedData(encoded, transform),
+                max_output_size=MAX_TRANSFORM_SIZE,
+                expected_output_size=int(item["size"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise FormatError(f"invalid transformed payload: {item['path']}") from exc
     return encoded
 
 
@@ -656,7 +1061,7 @@ def unpack(
     paths: Sequence[str] | None = None,
     overwrite: bool = False,
     verify: bool = True,
-    restore_permissions: bool = True,
+    restore_permissions: bool = False,
     max_extract_size: int = MAX_EXTRACT_SIZE,
     max_files: int = MAX_FILES,
     max_chunks: int = MAX_CHUNKS,
@@ -665,7 +1070,6 @@ def unpack(
     root.mkdir(parents=True, exist_ok=True)
     selected = tuple(normalize_archive_path(path.rstrip("/")) for path in paths or ())
     extracted: list[Path] = []
-    created_dirs: list[Path] = []
     with Path(archive).open("rb") as stream:
         manifest, _data, _footer = _read_manifest(stream)
         _validate_manifest(
@@ -673,7 +1077,9 @@ def unpack(
             max_extract_size=max_extract_size,
             max_files=max_files,
             max_chunks=max_chunks,
+            manifest_offset=_footer.manifest_offset,
         )
+        dictionaries = _dictionary_bytes(manifest)
         for directory in manifest["directories"]:
             if selected and not any(
                 directory == value or directory.startswith(value + "/") for value in selected
@@ -681,7 +1087,6 @@ def unpack(
                 continue
             destination = safe_destination(root, directory)
             destination.mkdir(parents=True, exist_ok=True)
-            created_dirs.append(destination)
         for item in manifest["files"]:
             path = item["path"]
             if selected and not any(
@@ -697,25 +1102,61 @@ def unpack(
             handle, temporary_name = tempfile.mkstemp(
                 prefix=f".{destination.name}.", suffix=".lowpack-tmp", dir=destination.parent
             )
-            os.close(handle)
             temporary = Path(temporary_name)
             try:
-                encoded_parts = [
-                    _read_chunk(stream, chunk_id, manifest["chunks"][chunk_id])
-                    for chunk_id in item["chunks"]
-                ]
-                decoded = _decode_file(b"".join(encoded_parts), item)
-                if verify and (len(decoded) != item["size"] or sha256_hex(decoded) != item["hash"]):
-                    raise FormatError(f"file integrity check failed: {path}")
-                with temporary.open("wb") as output_stream:
-                    output_stream.write(decoded)
+                encoded_hash = hashlib.sha256()
+                output_hash = hashlib.sha256()
+                encoded_size = 0
+                output_size = 0
+                identity = item["transform"]["mode"] == "exact"
+                encoded_buffer = bytearray()
+                with os.fdopen(handle, "wb") as output_stream:
+                    for chunk_id in item["chunks"]:
+                        raw = _read_chunk(
+                            stream,
+                            chunk_id,
+                            manifest["chunks"][chunk_id],
+                            dictionaries,
+                        )
+                        encoded_hash.update(raw)
+                        encoded_size += len(raw)
+                        if identity:
+                            output_stream.write(raw)
+                            output_hash.update(raw)
+                            output_size += len(raw)
+                        else:
+                            if len(encoded_buffer) + len(raw) > MAX_TRANSFORM_SIZE:
+                                raise FormatError(
+                                    f"transformed input exceeds safety limit: {path}"
+                                )
+                            encoded_buffer.extend(raw)
+                    if encoded_size != item["encoded_size"] or (
+                        encoded_hash.hexdigest() != item["encoded_hash"]
+                    ):
+                        raise FormatError(f"encoded file hash mismatch: {path}")
+                    if not identity:
+                        decoded = _decode_file(bytes(encoded_buffer), item)
+                        output_stream.write(decoded)
+                        output_hash.update(decoded)
+                        output_size = len(decoded)
+                    if verify and (
+                        output_size != item["size"]
+                        or output_hash.hexdigest() != item["hash"]
+                    ):
+                        raise FormatError(f"file integrity check failed: {path}")
                     output_stream.flush()
                     os.fsync(output_stream.fileno())
+                if safe_destination(root, path) != destination:
+                    raise FormatError(f"destination changed during extraction: {path}")
                 os.replace(temporary, destination)
                 if restore_permissions and "mode" in item:
-                    destination.chmod(int(item["mode"]))
+                    destination.chmod(int(item["mode"]) & 0o777)
                 extracted.append(destination)
             except BaseException:
+                try:
+                    os.close(handle)
+                except OSError:
+                    pass
                 temporary.unlink(missing_ok=True)
                 raise
     return extracted

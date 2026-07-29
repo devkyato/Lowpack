@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from lowpack.cli import main
+from lowpack.cli import build_parser, main
 
 
 def test_cli_json_and_exit_codes(tmp_path: Path, capsys) -> None:
@@ -25,3 +25,11 @@ def test_verify_deterministic_command(tmp_path: Path, capsys) -> None:
     assert main(["verify-deterministic", str(first), str(second)]) == 0
     second.write_bytes(b"y")
     assert main(["verify-deterministic", str(first), str(second)]) == 2
+
+
+def test_permission_restoration_requires_explicit_opt_in() -> None:
+    parser = build_parser()
+    default = parser.parse_args(["unpack", "archive.lpk"])
+    opted_in = parser.parse_args(["unpack", "archive.lpk", "--restore-permissions"])
+    assert default.restore_permissions is False
+    assert opted_in.restore_permissions is True

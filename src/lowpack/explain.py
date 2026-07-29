@@ -21,14 +21,14 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
             lines.extend(f"  {value}" for value in applied)
         level = decision.get("level")
         lines.append(
-            f"\nFinal codec:\n  {decision['final_codec']}"
+            f"\nPreferred codec policy result:\n  {decision['preferred_codec']}"
             + (f" level {level}" if level is not None else "")
         )
         lines.append(f"\nReason:\n  {decision['reason']}.")
         rejected = [
             candidate
             for candidate in decision["candidates"]
-            if candidate["codec"] != decision["final_codec"]
+            if candidate["codec"] != decision["preferred_codec"]
         ]
         if rejected:
             lines.append("\nRejected candidates:")
@@ -38,5 +38,17 @@ def explain_manifest(manifest: dict[str, Any]) -> str:
                     f"{candidate['packed_bytes']} packed bytes from "
                     f"{candidate['sample_bytes']} sampled bytes"
                 )
+        actual = item.get("chunk_decisions", [])
+        actual_codecs = sorted({value["actual_codec"] for value in actual})
+        reused = sum(1 for value in actual if value["reused"])
+        lines.append(
+            "\nActual stored representations:\n  "
+            + (", ".join(actual_codecs) if actual_codecs else "none (empty file)")
+        )
+        if reused:
+            lines.append(
+                f"  {reused} chunk reference(s) reused an existing "
+                "content-addressed representation."
+            )
         lines.append("\nThese results apply to the sampled input and recorded codec environment.\n")
     return "\n".join(lines).rstrip()

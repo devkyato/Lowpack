@@ -42,7 +42,12 @@ def test_source_dictionary_training_is_bounded_and_deterministic(tmp_path: Path)
     pack([source], second, profile="source", codec="zstd")
     manifest = _manifest(first)
     assert "python" in manifest["source_dictionaries"]
-    assert manifest["source_dictionaries"]["python"]["bytes"] <= 8192
+    dictionary_id = manifest["source_dictionaries"]["python"]["dictionary_id"]
+    assert manifest["dictionaries"][dictionary_id]["size"] <= 8192
+    assert manifest["dictionaries"][dictionary_id]["hash"] == dictionary_id
+    assert all(
+        "dictionary" not in chunk for chunk in manifest["chunks"].values()
+    )
     assert first.read_bytes() == second.read_bytes()
     assert verify_archive(first).valid
 
