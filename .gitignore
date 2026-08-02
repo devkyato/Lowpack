@@ -4,6 +4,7 @@
 *.egg-info/
 __pycache__/
 .pytest_cache/
+/pytest-of-*/
 .mypy_cache/
 .ruff_cache/
 /.build-audit-*/
