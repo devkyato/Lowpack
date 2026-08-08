@@ -1,0 +1,21 @@
+{
+  "creators": [{"name": "devkyato", "affiliation": "MATA Company"}],
+  "contributors": [{"name": "Cursor Agent", "type": "Other"}],
+  "title": "LowPack: local-first application-aware lossless packing for archives",
+  "description": "LowPack is a local-first command-line tool and Python library for application-aware, lossless archive packing. It uses deterministic packaging, safe indexing, deduplication, explainable codec selection, and reversible preparation while relying on established codecs such as Zstandard and zlib. Usage: pack a project or telemetry directory, inspect and verify the resulting archive, then unpack or selectively extract it locally. Applications include reproducible source archives, offline backups, telemetry bundles, course projects, and portable research artifacts.",
+  "version": "0.2.2",
+  "keywords": ["LowPack", "compression", "archive", "lossless", "Zstandard", "zlib", "Python", "CLI", "local-first"],
+  "license": "mit",
+  "upload_type": "software",
+  "access_right": "open",
+  "language": "eng",
+  "related_identifiers": [
+    {"identifier": "https://github.com/devkyato/Lowpack", "relation": "isSupplementTo", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/Datary", "relation": "references", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/OpenNet", "relation": "references", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/TapAuth", "relation": "references", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/Relay", "relation": "references", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/Custom-Arduino-Libraries", "relation": "references", "resource_type": "software"},
+    {"identifier": "https://github.com/devkyato/Arduino-Programs-Guide", "relation": "references", "resource_type": "software"}
+  ]
+}

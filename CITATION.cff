@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+title: "LowPack: local-first application-aware lossless packing for archives"
+authors:
+  - family-names: devkyato
+    affiliation: "MATA Company"
+version: 0.2.2
+license: MIT
+repository-code: "https://github.com/devkyato/Lowpack"
+url: "https://github.com/devkyato/Lowpack"
+abstract: "Local-first application-aware lossless packing for archives."
+keywords: [LowPack, compression, archive, lossless, Zstandard, zlib, Python, CLI, local-first]
+preferred-citation:
+  type: software
+  title: "LowPack: local-first application-aware lossless packing for archives"
+  authors:
+    - family-names: devkyato
+      affiliation: "MATA Company"
+  version: 0.2.2

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 - 2026-08-09
+
+- Add Zenodo and Citation File Format metadata for archival citation.
+- Refresh release references for the 0.2.2 publication.
+
 ## 0.2.1 - 2026-07-29
 
 - Add a read-only `lowpack compatibility` probe plus an authenticated, atomic

@@ -13,7 +13,7 @@ it will actually be stored and used, then hands it to proven lossless codecs.
 It is a terminal tool and Python library that stays completely on your laptop.
 
 > **A quick, honest alpha note:** the `.lpk` format is still experimental.
-> LowPack 0.2.1 can migrate format 1.0 archives made by the 0.1 releases, but
+> LowPack 0.2.2 can migrate format 1.0 archives made by the 0.1 releases, but
 > please do not make any alpha archive the only copy of important data.
 
 Oh! One point I care about being clear on: LowPack does **not** universally
@@ -30,7 +30,7 @@ attached to the GitHub release:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.1/lowpack-0.2.1-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.2/lowpack-0.2.2-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -204,6 +204,23 @@ Telemetry canonical mode stores exact IEEE-754 values, but only exact mode
 preserves the original decimal spelling. Canonical transforms have a 64 MiB
 encoded/output cap until their decoder is streamed. See
 [all limitations](docs/limitations.md).
+
+## Citation
+
+If you use this software in research or teaching, please cite the Zenodo archive / this repository:
+
+```text
+devkyato. (2026). LowPack: local-first application-aware lossless packing for archives (Version 0.2.2).
+```
+
+See [CITATION.cff](CITATION.cff) for machine-readable metadata.
+
+## Applications
+
+- Deterministic source-tree archives.
+- Local offline backup and transfer bundles.
+- Lossless telemetry and experiment artifact packing.
+- Reproducible coursework and research data packaging.
 
 ## Connected projects
 
