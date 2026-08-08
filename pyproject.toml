@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lowpack"
-version = "0.2.2"
+version = "0.2.3"
 description = "Application-aware, lossless local-first packing built on proven codecs."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
 authors = [{ name = "devkyato" }]
-keywords = ["archive", "compression", "deduplication", "lossless", "zstandard"]
+keywords = ["archive", "compression", "deduplication", "deterministic", "lossless", "local-first", "telemetry", "zstandard"]
 dependencies = ["zstandard>=0.22"]
 classifiers = [
   "Development Status :: 3 - Alpha",

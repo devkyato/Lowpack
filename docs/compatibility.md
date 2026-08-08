@@ -2,7 +2,8 @@
 
 LowPack 0.2 writes binary format 1.1 with manifest schema 2.0. LowPack 0.1.x
 wrote format 1.0. I did not want a security-driven schema change to leave the
-earliest test archives stranded, so 0.2.1 adds one explicit bridge:
+earliest test archives stranded, so the 0.2 series includes one explicit
+bridge (introduced in 0.2.1 and retained in 0.2.3):
 
 ```powershell
 lowpack compatibility old-project.lpk

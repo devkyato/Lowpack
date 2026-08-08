@@ -11,7 +11,7 @@ LowPack supports Python 3.9 through 3.14. On Windows PowerShell:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.1/lowpack-0.2.1-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -21,7 +21,7 @@ On macOS or Linux:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.1/lowpack-0.2.1-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -42,6 +42,16 @@ lowpack pack my-project -o my-project.lpk --profile source
 lowpack inspect my-project.lpk
 lowpack verify my-project.lpk --full
 lowpack unpack my-project.lpk -o restored
+```
+
+For a directory containing 42 files, the `pack`, `verify`, and `unpack` lines
+appear in this exact form (the count and archive path follow your input).
+`inspect` prints the archive fields between the first line and `OK`:
+
+```text
+Packed 42 files to my-project.lpk
+OK
+Extracted 42 files
 ```
 
 I thought too on the point that a successful pack should not be treated as a
@@ -65,7 +75,7 @@ python -m pip uninstall lowpack
 
 Uninstalling never removes `.lpk` files or extracted data.
 
-If you have a 0.1.x archive, install 0.2.1 and follow the
+If you have a 0.1.x archive, install 0.2.3 and follow the
 [compatibility guide](compatibility.md). Installing a new LowPack version does
 not silently rewrite existing archives.
 

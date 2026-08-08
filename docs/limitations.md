@@ -3,8 +3,8 @@
 I would rather keep this list direct than hide unfinished edges behind an
 “alpha” label. These are the boundaries I know about today:
 
-- Forward compatibility is not promised across alpha releases. LowPack 0.2.1
-  provides a checked migration for format 1.0 archives created by 0.1.x; it
+- Forward compatibility is not promised across alpha releases. LowPack 0.2.3
+  includes the checked migration for format 1.0 archives created by 0.1.x; it
   does not guess at unknown formats or repair corrupted archives.
 - Chunk boundaries are fixed-size, not content-defined.
 - Source dictionary training is active, bounded, deterministic, and
@@ -24,9 +24,8 @@ I would rather keep this list direct than hide unfinished edges behind an
   traversal.
 - General safety limits are constants in the 0.2 library API.
 
-I am tracking the larger follow-ups in the
-[issue tracker](https://github.com/devkyato/Lowpack/issues), especially
-[#1](https://github.com/devkyato/Lowpack/issues/1) streaming extract,
-[#2](https://github.com/devkyato/Lowpack/issues/2) telemetry transforms, and
-[#4](https://github.com/devkyato/Lowpack/issues/4) continuous fuzzing. This page
-and those issues should tell the same story.
+LowPack 0.2.3 is a documentation and citation maintenance release; it does not
+remove these format or implementation boundaries. I track larger follow-ups in
+the [issue tracker](https://github.com/devkyato/Lowpack/issues). This page,
+the [compatibility guide](compatibility.md), and open issues should tell the
+same story before an archive is treated as a sole copy.

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.3 - 2026-08-09
+
+- Overhaul the Zenodo presentation with sanitizer-safe sections for actual
+  installation, use, applications, alpha limits, documentation, and citation.
+- Expand Citation File Format metadata without asserting a DOI, ORCID, or
+  legal name.
+- Update stale installation and compatibility documentation to 0.2.3.
+- Add exact CLI-output examples, a documentation index, release notes, and a
+  release checklist.
+- Keep archive format 1.1, manifest schema 2.0, codecs, profiles, safety
+  limits, and migration behaviour unchanged.
+
 ## 0.2.2 - 2026-08-09
 
 - Add Zenodo and Citation File Format metadata for archival citation.

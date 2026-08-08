@@ -1,6 +1,6 @@
 """LowPack public API."""
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 from .archive import inspect_archive, pack, unpack, verify_archive
 from .migration import migrate_archive, probe_compatibility

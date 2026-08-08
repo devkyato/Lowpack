@@ -6,6 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/devkyato/Lowpack?include_prereleases)](https://github.com/devkyato/Lowpack/releases)
 [![Python 3.9–3.14](https://img.shields.io/badge/python-3.9%E2%80%933.14-blue)](https://github.com/devkyato/Lowpack/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21853277.svg)](https://doi.org/10.5281/zenodo.21853277)
 
 I built LowPack around one fairly simple thought: compression should understand
 what it is packing before it reaches for a codec. LowPack prepares data for how
@@ -13,7 +14,7 @@ it will actually be stored and used, then hands it to proven lossless codecs.
 It is a terminal tool and Python library that stays completely on your laptop.
 
 > **A quick, honest alpha note:** the `.lpk` format is still experimental.
-> LowPack 0.2.2 can migrate format 1.0 archives made by the 0.1 releases, but
+> LowPack 0.2.3 can migrate format 1.0 archives made by the 0.1 releases, but
 > please do not make any alpha archive the only copy of important data.
 
 Oh! One point I care about being clear on: LowPack does **not** universally
@@ -30,7 +31,7 @@ attached to the GitHub release:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.2/lowpack-0.2.2-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -60,6 +61,15 @@ lowpack inspect project.lpk
 lowpack verify project.lpk --full
 lowpack explain project.lpk
 lowpack unpack project.lpk -o restored
+```
+
+The exact sizes depend on the input, but a successful run reports the archive,
+its verification status, and restored file count in this form:
+
+```text
+Packed 42 files to project.lpk
+OK
+Extracted 42 files
 ```
 
 Selective extraction is `lowpack extract project.lpk project/src -o selected`.
@@ -198,7 +208,7 @@ Functions return typed frozen result models.
 This is where I would rather be specific than sound finished too early. The
 format has no forward-compatibility promise during alpha. Version 0.2
 deliberately introduced manifest schema 2 after the 0.1 security review;
-0.2.1 provides a checked migration from format 1.0. Source dictionaries
+0.2.3 provides a checked migration from format 1.0. Source dictionaries
 use bounded deterministic samples and only apply to Zstandard chunks.
 Telemetry canonical mode stores exact IEEE-754 values, but only exact mode
 preserves the original decimal spelling. Canonical transforms have a 64 MiB
@@ -210,10 +220,15 @@ encoded/output cap until their decoder is streamed. See
 If you use this software in research or teaching, please cite the Zenodo archive / this repository:
 
 ```text
-devkyato. (2026). LowPack: local-first application-aware lossless packing for archives (Version 0.2.2).
+@dev.mako (devkyato). (2026). LowPack: local-first application-aware lossless packing for archives (Version 0.2.3).
 ```
 
 See [CITATION.cff](CITATION.cff) for machine-readable metadata.
+
+## Documentation index
+
+The [documentation index](docs/README.md) connects installation, format,
+profiles, security, compatibility, benchmarks, limitations, and release notes.
 
 ## Applications
 

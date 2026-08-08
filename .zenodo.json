@@ -1,21 +1,47 @@
 {
-  "creators": [{"name": "devkyato", "affiliation": "MATA Company"}],
-  "contributors": [{"name": "Cursor Agent", "type": "Other"}],
+  "creators": [
+    {
+      "name": "@dev.mako (devkyato)",
+      "affiliation": "MATA Company"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Cursor Agent",
+      "type": "Other"
+    }
+  ],
   "title": "LowPack: local-first application-aware lossless packing for archives",
-  "description": "LowPack is a local-first command-line tool and Python library for application-aware, lossless archive packing. It uses deterministic packaging, safe indexing, deduplication, explainable codec selection, and reversible preparation while relying on established codecs such as Zstandard and zlib. Usage: pack a project or telemetry directory, inspect and verify the resulting archive, then unpack or selectively extract it locally. Applications include reproducible source archives, offline backups, telemetry bundles, course projects, and portable research artifacts.",
-  "version": "0.2.2",
-  "keywords": ["LowPack", "compression", "archive", "lossless", "Zstandard", "zlib", "Python", "CLI", "local-first"],
+  "description": "<h2>Overview</h2><p><strong>LowPack</strong> is a local-first command-line tool and Python library for deterministic, application-aware, lossless archive packing. It prepares data according to an explicit profile and uses established store, zlib, and Zstandard codecs.</p><h2>Capabilities</h2><ul><li>Packs, lists, inspects, verifies, explains, extracts, and unpacks <strong>.lpk</strong> archives.</li><li>Provides general, source, and telemetry profiles with recorded decisions.</li><li>Deduplicates identical chunks, validates extraction paths, and supports checked migration of format 1.0 archives.</li><li>Exposes typed Python functions for archive workflows.</li></ul><h2>Install/Deploy</h2><p>Install the versioned wheel with Python 3.9 through 3.14.</p><pre><code>python -m pip install https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl\nlowpack --version\nlowpack doctor</code></pre><h2>Quick start</h2><pre><code>lowpack pack project -o project.lpk --profile source\nlowpack inspect project.lpk\nlowpack verify project.lpk --full\nlowpack unpack project.lpk -o restored</code></pre><h2>Applications</h2><ul><li>Reproducible source-tree archives.</li><li>Offline backup and transfer bundles.</li><li>Lossless telemetry and experiment artifact packaging.</li><li>Coursework and research data archives.</li></ul><h2>Limitations/status</h2><p>LowPack 0.2.3 is alpha software and the format has no forward-compatibility promise across alpha releases. It does not claim to outperform general-purpose codecs. Symlinks, encryption, signatures, split archives, and append mode are not supported; important data needs another independent copy.</p><h2>Documentation</h2><p>Use the <a href=\"https://github.com/devkyato/Lowpack/blob/main/docs/getting-started.md\">getting-started guide</a>, <a href=\"https://github.com/devkyato/Lowpack/blob/main/docs/limitations.md\">limitations</a>, and <a href=\"https://github.com/devkyato/Lowpack/blob/main/docs/README.md\">documentation index</a>.</p><h2>Related software</h2><p>The maintained source repository is <a href=\"https://github.com/devkyato/Lowpack\">LowPack on GitHub</a>.</p><h2>Citation</h2><p>@dev.mako (devkyato). (2026). <strong>LowPack: local-first application-aware lossless packing for archives</strong> (Version 0.2.3). Zenodo. <a href=\"https://doi.org/10.5281/zenodo.21853277\">https://doi.org/10.5281/zenodo.21853277</a></p>",
+  "version": "0.2.3",
+  "keywords": [
+    "LowPack",
+    "compression",
+    "archive",
+    "deduplication",
+    "deterministic",
+    "lossless",
+    "Zstandard",
+    "zlib",
+    "Python",
+    "CLI",
+    "local-first",
+    "telemetry"
+  ],
   "license": "mit",
   "upload_type": "software",
   "access_right": "open",
   "language": "eng",
   "related_identifiers": [
-    {"identifier": "https://github.com/devkyato/Lowpack", "relation": "isSupplementTo", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/Datary", "relation": "references", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/OpenNet", "relation": "references", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/TapAuth", "relation": "references", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/Relay", "relation": "references", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/Custom-Arduino-Libraries", "relation": "references", "resource_type": "software"},
-    {"identifier": "https://github.com/devkyato/Arduino-Programs-Guide", "relation": "references", "resource_type": "software"}
+    {
+      "identifier": "https://github.com/devkyato/Lowpack",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "10.5281/zenodo.21853277",
+      "relation": "isVersionOf",
+      "scheme": "doi"
+    }
   ]
 }

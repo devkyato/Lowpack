@@ -2,18 +2,47 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata from this file."
 title: "LowPack: local-first application-aware lossless packing for archives"
 authors:
-  - family-names: devkyato
+  - family-names: "@dev.mako (devkyato)"
     affiliation: "MATA Company"
-version: 0.2.2
+contributors:
+  - name: "Cursor Agent"
+version: 0.2.3
+date-released: 2026-08-09
 license: MIT
 repository-code: "https://github.com/devkyato/Lowpack"
 url: "https://github.com/devkyato/Lowpack"
-abstract: "Local-first application-aware lossless packing for archives."
-keywords: [LowPack, compression, archive, lossless, Zstandard, zlib, Python, CLI, local-first]
+doi: 10.5281/zenodo.21853277
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21853277
+abstract: >-
+  LowPack is a local-first command-line tool and Python library for
+  deterministic, application-aware, lossless archive packing. It combines
+  safe indexing, chunk deduplication, explainable codec policy, reversible
+  preparation, full verification, and checked migration while relying on
+  established store, zlib, and Zstandard codecs. General, source, and
+  telemetry profiles support offline project, backup, teaching, and research
+  artifact workflows.
+keywords:
+  - LowPack
+  - compression
+  - archive
+  - deduplication
+  - deterministic
+  - lossless
+  - Zstandard
+  - zlib
+  - Python
+  - CLI
+  - local-first
+  - telemetry
 preferred-citation:
   type: software
   title: "LowPack: local-first application-aware lossless packing for archives"
   authors:
-    - family-names: devkyato
+    - family-names: "@dev.mako (devkyato)"
       affiliation: "MATA Company"
-  version: 0.2.2
+  repository-code: "https://github.com/devkyato/Lowpack"
+  version: 0.2.3
+  doi: 10.5281/zenodo.21853277
+  date-released: 2026-08-09
