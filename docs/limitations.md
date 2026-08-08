@@ -25,5 +25,8 @@ I would rather keep this list direct than hide unfinished edges behind an
 - General safety limits are constants in the 0.2 library API.
 
 I am tracking the larger follow-ups in the
-[issue tracker](https://github.com/devkyato/Lowpack/issues), so this page and
-the roadmap should tell the same story.
+[issue tracker](https://github.com/devkyato/Lowpack/issues), especially
+[#1](https://github.com/devkyato/Lowpack/issues/1) streaming extract,
+[#2](https://github.com/devkyato/Lowpack/issues/2) telemetry transforms, and
+[#4](https://github.com/devkyato/Lowpack/issues/4) continuous fuzzing. This page
+and those issues should tell the same story.

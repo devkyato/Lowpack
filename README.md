@@ -205,6 +205,17 @@ preserves the original decimal spelling. Canonical transforms have a 64 MiB
 encoded/output cap until their decoder is streamed. See
 [all limitations](docs/limitations.md).
 
+## Connected projects
+
+| Project | Role |
+| --- | --- |
+| **[Datary](https://github.com/devkyato/Datary)** | Local-first laboratory for reproducible program and simulation evidence |
+| **[Relay](https://github.com/devkyato/Relay)** | Timing-risk source review for control programs |
+| **[OpenNet](https://github.com/devkyato/OpenNet)** | Typed ONP/1 messaging for ESP32, Raspberry Pi, and backends |
+| **[TapAuth](https://github.com/devkyato/TapAuth)** | Raspberry Pi NFC attendance and reservation kiosk |
+| **[Custom Arduino Libraries](https://github.com/devkyato/Custom-Arduino-Libraries)** | Non-blocking LED and digital-output patterns |
+| **[Arduino Programs Guide](https://github.com/devkyato/Arduino-Programs-Guide)** | Safety-first, compile-checked Arduino Uno course |
+
 ## Contributing and license
 
 If the idea is useful to you, I would genuinely like the project to be easy to
