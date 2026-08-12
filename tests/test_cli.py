@@ -33,3 +33,11 @@ def test_permission_restoration_requires_explicit_opt_in() -> None:
     opted_in = parser.parse_args(["unpack", "archive.lpk", "--restore-permissions"])
     assert default.restore_permissions is False
     assert opted_in.restore_permissions is True
+
+
+def test_extract_verify_flags_match_unpack() -> None:
+    parser = build_parser()
+    default = parser.parse_args(["extract", "archive.lpk", "hello.txt"])
+    disabled = parser.parse_args(["extract", "archive.lpk", "hello.txt", "--no-verify"])
+    assert default.verify is True
+    assert disabled.verify is False

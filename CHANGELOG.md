@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Expose `--verify` / `--no-verify` on `lowpack extract` to match `unpack`.
+
 ## 0.2.3 - 2026-08-09
 
 - Overhaul the Zenodo presentation with sanitizer-safe sections for actual

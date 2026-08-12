@@ -101,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
     extracting.add_argument("paths", nargs="+")
     extracting.add_argument("-o", "--output", default=".")
     extracting.add_argument("--overwrite", action="store_true")
+    extracting.add_argument("--verify", action=argparse.BooleanOptionalAction, default=True)
     extracting.add_argument("--max-size", type=_size, default=8 * 1024**3)
     extracting.add_argument("--max-files", type=int, default=100_000)
     extracting.add_argument("--max-chunks", type=int, default=1_000_000)
@@ -286,6 +287,7 @@ def run(args: argparse.Namespace) -> int:
             output=args.output,
             paths=args.paths,
             overwrite=args.overwrite,
+            verify=args.verify,
             max_extract_size=args.max_size,
             max_files=args.max_files,
             max_chunks=args.max_chunks,
