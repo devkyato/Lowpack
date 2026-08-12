@@ -11,7 +11,7 @@ LowPack supports Python 3.9 through 3.14. On Windows PowerShell:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.4/lowpack-0.2.4-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -21,7 +21,7 @@ On macOS or Linux:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.4/lowpack-0.2.4-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -75,7 +75,7 @@ python -m pip uninstall lowpack
 
 Uninstalling never removes `.lpk` files or extracted data.
 
-If you have a 0.1.x archive, install 0.2.3 and follow the
+If you have a 0.1.x archive, install 0.2.4 and follow the
 [compatibility guide](compatibility.md). Installing a new LowPack version does
 not silently rewrite existing archives.
 

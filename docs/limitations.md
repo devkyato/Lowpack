@@ -3,7 +3,7 @@
 I would rather keep this list direct than hide unfinished edges behind an
 “alpha” label. These are the boundaries I know about today:
 
-- Forward compatibility is not promised across alpha releases. LowPack 0.2.3
+- Forward compatibility is not promised across alpha releases. LowPack 0.2.4
   includes the checked migration for format 1.0 archives created by 0.1.x; it
   does not guess at unknown formats or repair corrupted archives.
 - Chunk boundaries are fixed-size, not content-defined.
@@ -24,7 +24,7 @@ I would rather keep this list direct than hide unfinished edges behind an
   traversal.
 - General safety limits are constants in the 0.2 library API.
 
-LowPack 0.2.3 is a documentation and citation maintenance release; it does not
+LowPack 0.2.4 is a documentation and citation maintenance release; it does not
 remove these format or implementation boundaries. I track larger follow-ups in
 the [issue tracker](https://github.com/devkyato/Lowpack/issues). This page,
 the [compatibility guide](compatibility.md), and open issues should tell the

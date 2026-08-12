@@ -5,7 +5,7 @@ someone is trying to answer.
 
 ## Start and operate
 
-- [Getting started](getting-started.md): install LowPack 0.2.3, make a first
+- [Getting started](getting-started.md): install LowPack 0.2.4, make a first
   archive, verify it, restore it, upgrade, and troubleshoot the command path.
 - [Profiles](profiles.md): general, source, and telemetry preparation.
 - [Compatibility and migration](compatibility.md): inspect and migrate 0.1.x
@@ -23,7 +23,7 @@ someone is trying to answer.
 ## Build and cite
 
 - [Architecture](architecture.md): package components and data flow.
-- [0.2.3 release notes](releases/0.2.3.md).
+- [0.2.4 release notes](releases/0.2.4.md).
 - [Changelog](../CHANGELOG.md).
 - [Contributing and release checklist](../CONTRIBUTING.md).
 - [Citation metadata](../CITATION.cff).

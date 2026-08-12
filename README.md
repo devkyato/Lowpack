@@ -14,7 +14,7 @@ it will actually be stored and used, then hands it to proven lossless codecs.
 It is a terminal tool and Python library that stays completely on your laptop.
 
 > **A quick, honest alpha note:** the `.lpk` format is still experimental.
-> LowPack 0.2.3 can migrate format 1.0 archives made by the 0.1 releases, but
+> LowPack 0.2.4 can migrate format 1.0 archives made by the 0.1 releases, but
 > please do not make any alpha archive the only copy of important data.
 
 Oh! One point I care about being clear on: LowPack does **not** universally
@@ -31,7 +31,7 @@ attached to the GitHub release:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.3/lowpack-0.2.3-py3-none-any.whl"
+python -m pip install "https://github.com/devkyato/Lowpack/releases/download/v0.2.4/lowpack-0.2.4-py3-none-any.whl"
 lowpack --version
 lowpack doctor
 ```
@@ -208,7 +208,7 @@ Functions return typed frozen result models.
 This is where I would rather be specific than sound finished too early. The
 format has no forward-compatibility promise during alpha. Version 0.2
 deliberately introduced manifest schema 2 after the 0.1 security review;
-0.2.3 provides a checked migration from format 1.0. Source dictionaries
+0.2.4 provides a checked migration from format 1.0. Source dictionaries
 use bounded deterministic samples and only apply to Zstandard chunks.
 Telemetry canonical mode stores exact IEEE-754 values, but only exact mode
 preserves the original decimal spelling. Canonical transforms have a 64 MiB
@@ -220,7 +220,7 @@ encoded/output cap until their decoder is streamed. See
 If you use this software in research or teaching, please cite the Zenodo archive / this repository:
 
 ```text
-@dev.mako (devkyato). (2026). LowPack: local-first application-aware lossless packing for archives (Version 0.2.3).
+@dev.mako (devkyato). (2026). LowPack: local-first application-aware lossless packing for archives (Version 0.2.4).
 ```
 
 See [CITATION.cff](CITATION.cff) for machine-readable metadata.

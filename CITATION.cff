@@ -6,8 +6,8 @@ authors:
     affiliation: "MATA Company"
 contributors:
   - name: "Cursor Agent"
-version: 0.2.3
-date-released: 2026-08-09
+version: 0.2.4
+date-released: 2026-08-12
 license: MIT
 repository-code: "https://github.com/devkyato/Lowpack"
 url: "https://github.com/devkyato/Lowpack"
@@ -43,6 +43,6 @@ preferred-citation:
     - family-names: "@dev.mako (devkyato)"
       affiliation: "MATA Company"
   repository-code: "https://github.com/devkyato/Lowpack"
-  version: 0.2.3
+  version: 0.2.4
   doi: 10.5281/zenodo.21853277
-  date-released: 2026-08-09
+  date-released: 2026-08-12
